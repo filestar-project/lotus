@@ -582,6 +582,16 @@ func (syncer *Syncer) Sync(ctx context.Context, maybeHead *types.TipSet) error {
 		return xerrors.Errorf("collectChain failed: %w", err)
 	}
 
+	// firstly try to apply new tipset
+	if _, _, err := syncer.sm.TipSetState(ctx, maybeHead); err != nil {
+		span.AddAttributes(trace.StringAttribute("state_error", err.Error()))
+		span.SetStatus(trace.Status{
+			Code:    13,
+			Message: err.Error(),
+		})
+		return xerrors.Errorf("compute tipSetState failed: %w", err)
+	}
+
 	// At this point we have accepted and synced to the new `maybeHead`
 	// (`StageSyncComplete`).
 	if err := syncer.store.PutTipSet(ctx, maybeHead); err != nil {

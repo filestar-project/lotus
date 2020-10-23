@@ -26,3 +26,6 @@
 [submodule "extern/geth"]
 	path = extern/go-ethereum
 	url = https://github.com/pixelplex-dev/filestar-geth 
+[submodule "extern/go-jsonrpc"]
+	path = extern/go-jsonrpc
+	url = https://github.com/pixelplex-dev/go-jsonrpc

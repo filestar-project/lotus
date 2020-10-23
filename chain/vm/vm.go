@@ -8,6 +8,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	sapi "github.com/filecoin-project/lotus/api/storage_api"
+	esapi "github.com/filecoin-project/lotus/api/storage_api/empty_api"
 	"github.com/filecoin-project/lotus/chain/actors/builtin"
 
 	block "github.com/ipfs/go-block-format"
@@ -118,7 +120,7 @@ func (bs *gasChargingBlocks) Put(blk block.Block) error {
 	return nil
 }
 
-func (vm *VM) makeRuntime(ctx context.Context, msg *types.Message, parent *Runtime) *Runtime {
+func (vm *VM) makeRuntime(ctx context.Context, msg *types.Message, parent *Runtime, storageAPI sapi.StorageHandle) *Runtime {
 	rt := &Runtime{
 		ctx:             ctx,
 		vm:              vm,
@@ -136,6 +138,7 @@ func (vm *VM) makeRuntime(ctx context.Context, msg *types.Message, parent *Runti
 		allowInternal:    true,
 		callerValidated:  false,
 		executionTrace:   types.ExecutionTrace{Msg: msg},
+		storageAPI:       storageAPI,
 	}
 
 	if parent != nil {
@@ -185,7 +188,7 @@ type UnsafeVM struct {
 }
 
 func (vm *UnsafeVM) MakeRuntime(ctx context.Context, msg *types.Message) *Runtime {
-	return vm.VM.makeRuntime(ctx, msg, nil)
+	return vm.VM.makeRuntime(ctx, msg, nil, vm.VM.api)
 }
 
 type CircSupplyCalculator func(context.Context, abi.ChainEpoch, *state.StateTree) (abi.TokenAmount, error)
@@ -204,6 +207,7 @@ type VM struct {
 	ntwkVersion    NtwkVersionGetter
 	baseFee        abi.TokenAmount
 	lbStateGet     LookbackStateGetter
+	api            sapi.StorageHandle
 
 	Syscalls SyscallBuilder
 }
@@ -218,6 +222,7 @@ type VMOpts struct {
 	NtwkVersion    NtwkVersionGetter // TODO: stebalien: In what cases do we actually need this? It seems like even when creating new networks we want to use the 'global'/build-default version getter
 	BaseFee        abi.TokenAmount
 	LookbackState  LookbackStateGetter
+	Api            sapi.StorageHandle
 }
 
 func NewVM(ctx context.Context, opts *VMOpts) (*VM, error) {
@@ -226,6 +231,10 @@ func NewVM(ctx context.Context, opts *VMOpts) (*VM, error) {
 	state, err := state.LoadStateTree(cst, opts.StateBase)
 	if err != nil {
 		return nil, err
+	}
+
+	if opts.Api == nil {
+		opts.Api = &esapi.EmptyStorageAPI{}
 	}
 
 	return &VM{
@@ -241,6 +250,7 @@ func NewVM(ctx context.Context, opts *VMOpts) (*VM, error) {
 		Syscalls:       opts.Syscalls,
 		baseFee:        opts.BaseFee,
 		lbStateGet:     opts.LookbackState,
+		api:            opts.Api,
 	}, nil
 }
 
@@ -264,7 +274,7 @@ func (vm *VM) send(ctx context.Context, msg *types.Message, parent *Runtime,
 
 	st := vm.cstate
 
-	rt := vm.makeRuntime(ctx, msg, parent)
+	rt := vm.makeRuntime(ctx, msg, parent, vm.api)
 	if EnableGasTracing {
 		rt.lastGasChargeTime = start
 		if parent != nil {

@@ -48,7 +48,6 @@ require (
 	github.com/filestar-project/evm-adapter v0.0.1
 	github.com/gbrlsnchs/jwt/v3 v3.0.0-beta.1
 	github.com/go-kit/kit v0.10.0
-	github.com/go-ole/go-ole v1.2.4 // indirect
 	github.com/google/uuid v1.1.2
 	github.com/gorilla/mux v1.7.4
 	github.com/gorilla/websocket v1.4.2
@@ -103,6 +102,7 @@ require (
 	github.com/libp2p/go-libp2p-kad-dht v0.11.0
 	github.com/libp2p/go-libp2p-mplex v0.3.0
 	github.com/libp2p/go-libp2p-noise v0.1.2
+	github.com/libp2p/go-libp2p-peer v0.2.0 // indirect
 	github.com/libp2p/go-libp2p-peerstore v0.2.6
 	github.com/libp2p/go-libp2p-pubsub v0.4.0
 	github.com/libp2p/go-libp2p-quic-transport v0.9.0
@@ -112,6 +112,8 @@ require (
 	github.com/libp2p/go-libp2p-tls v0.1.3
 	github.com/libp2p/go-libp2p-yamux v0.4.1
 	github.com/libp2p/go-maddr-filter v0.1.0
+	github.com/libp2p/go-nat v0.0.5 // indirect
+	github.com/marten-seemann/qtls-go1-15 v0.1.0 // indirect
 	github.com/minio/blake2b-simd v0.0.0-20160723061019-3f5f724cb5b1
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/multiformats/go-base32 v0.0.3
@@ -132,14 +134,14 @@ require (
 	github.com/whyrusleeping/multiaddr-filter v0.0.0-20160516205228-e903e4adabd7
 	github.com/whyrusleeping/pubsub v0.0.0-20131020042734-02de8aa2db3d
 	github.com/xorcare/golden v0.6.1-0.20191112154924-b87f686d7542
+	github.com/zondax/ledger-go v0.12.1 // indirect
 	go.opencensus.io v0.22.4
-	go.uber.org/dig v1.10.0 // indirect
-	go.uber.org/fx v1.9.0
-	go.uber.org/multierr v1.5.0
+	go.uber.org/fx v1.13.1
+	go.uber.org/multierr v1.6.0
 	go.uber.org/zap v1.16.0
-	golang.org/x/net v0.0.0-20210405180319-a5a99cb37ef4
-	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
-	golang.org/x/sys v0.0.0-20210616094352-59db8d763f22
+	golang.org/x/crypto v0.0.0-20210513164829-c07d793c2f9a
+	golang.org/x/sync v0.0.0-20201207232520-09787c993a3a
+	golang.org/x/sys v0.0.0-20201119102817-f84b799fce68
 	golang.org/x/time v0.0.0-20191024005414-555d28b269f0
 	golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1
 	gopkg.in/cheggaaa/pb.v1 v1.0.28
@@ -164,8 +166,12 @@ replace github.com/filecoin-project/go-paramfetch => github.com/filestar-project
 
 replace github.com/filecoin-project/go-state-types => ./extern/go-state-types
 
+replace github.com/filecoin-project/go-state-types => ./extern/go-state-types
+
 replace github.com/filecoin-project/specs-actors/v2 => ./extern/specs-actors
 
 replace github.com/filestar-project/evm-adapter => ./extern/evm-adapter
+
+replace github.com/filecoin-project/go-jsonrpc => ./extern/go-jsonrpc
 
 replace github.com/ethereum/go-ethereum => ./extern/go-ethereum

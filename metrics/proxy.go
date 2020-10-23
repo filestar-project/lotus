@@ -8,6 +8,7 @@ import (
 
 	"github.com/filecoin-project/lotus/api"
 	"github.com/filecoin-project/lotus/api/apistruct"
+	web3 "github.com/filecoin-project/lotus/api/web3_api"
 )
 
 func MetricedStorMinerAPI(a api.StorageMiner) api.StorageMiner {
@@ -27,6 +28,31 @@ func MetricedFullAPI(a api.FullNode) api.FullNode {
 func MetricedWorkerAPI(a api.WorkerAPI) api.WorkerAPI {
 	var out apistruct.WorkerStruct
 	proxy(a, &out.Internal)
+	return &out
+}
+
+func MetricedWeb3API(a web3.Web3Info) web3.Web3Info {
+	var out apistruct.Web3InfoStruct
+	proxy(a, &out.Internal)
+	return &out
+}
+
+func MetricedNetAPI(a web3.NetInfo) web3.NetInfo {
+	var out apistruct.NetInfoStruct
+	proxy(a, &out.Internal)
+	return &out
+}
+
+func MetricedTraceAPI(a web3.TraceFunctionality) web3.TraceFunctionality {
+	var out apistruct.TraceFunctionalityStruct
+	proxy(a, &out.Internal)
+	return &out
+}
+
+func MetricedEthAPI(a web3.EthFunctionality) web3.EthFunctionality {
+	var out apistruct.EthFunctionalityStruct
+	proxy(a, &out.Internal)
+	proxy(a, &out.EthInfoStruct.Internal)
 	return &out
 }
 

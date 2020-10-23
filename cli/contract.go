@@ -101,10 +101,12 @@ func newContractCmdParams(cctx *cli.Context, cmd int) (*contractCmdParams, error
 		indexAddr = 1
 		indexCode = 2
 	}
-
-	code, err := hex.DecodeString(cctx.Args().Get(indexCode))
-	if err != nil {
-		return nil, fmt.Errorf("failed to decode contract code as hex param: %w", err)
+	var code []byte
+	if cctx.Args().Get(indexCode) != "0x" || cmd == contractCreateCommand {
+		code, err = hex.DecodeString(cctx.Args().Get(indexCode))
+		if err != nil {
+			return nil, fmt.Errorf("failed to decode contract code as hex param: %w", err)
+		}
 	}
 
 	var toAddr address.Address
@@ -182,13 +184,13 @@ var contractCreate = &cli.Command{
 		}
 
 		p, err := newContractCmdParams(cctx, contractCreateCommand)
-		p.to = builtin.InitActorAddr
 		if err != nil {
 			return err
 		}
+		p.to = builtin.InitActorAddr
 		defer p.closer()
 
-		contractParams, err := actors.SerializeParams(&contract.ContractParams{Code: p.code, Value: p.amount, CommitStatus: true})
+		contractParams, err := actors.SerializeParams(&contract.ContractParams{Code: p.code, Value: p.amount, Commit: true})
 		if err != nil {
 			return xerrors.Errorf("failed to serialize contract create params: %w", err)
 		}
@@ -263,7 +265,7 @@ var contractCall = &cli.Command{
 		}
 		defer p.closer()
 
-		params, err := actors.SerializeParams(&contract.ContractParams{Code: p.code, Value: p.amount, CommitStatus: true})
+		params, err := actors.SerializeParams(&contract.ContractParams{Code: p.code, Value: p.amount, Commit: true})
 		if err != nil {
 			return xerrors.Errorf("failed to serialize contract call params: %w", err)
 		}

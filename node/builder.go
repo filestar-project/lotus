@@ -40,6 +40,7 @@ import (
 	storage2 "github.com/filecoin-project/specs-storage/storage"
 
 	"github.com/filecoin-project/lotus/api"
+	web3 "github.com/filecoin-project/lotus/api/web3_api"
 	"github.com/filecoin-project/lotus/chain/beacon"
 	"github.com/filecoin-project/lotus/chain/gen"
 	"github.com/filecoin-project/lotus/chain/gen/slashfilter"
@@ -67,6 +68,7 @@ import (
 	"github.com/filecoin-project/lotus/node/impl"
 	"github.com/filecoin-project/lotus/node/impl/common"
 	"github.com/filecoin-project/lotus/node/impl/full"
+	web3impl "github.com/filecoin-project/lotus/node/impl/web3"
 	"github.com/filecoin-project/lotus/node/modules"
 	"github.com/filecoin-project/lotus/node/modules/dtypes"
 	"github.com/filecoin-project/lotus/node/modules/helpers"
@@ -139,6 +141,11 @@ const (
 
 	// daemon
 	ExtractApiKey
+	Web3APIKey
+	NetAPIKey
+	EthAPIKey
+	TraceAPIKey
+	DatabaseAPIKey
 	HeadMetricsKey
 	SettlePaymentChannelsKey
 	RunPeerTaggerKey
@@ -627,6 +634,59 @@ func FullAPI(out *api.FullNode, fopts ...FullOption) Option {
 		func(s *Settings) error {
 			resAPI := &impl.FullNodeAPI{}
 			s.invokes[ExtractApiKey] = fx.Populate(resAPI)
+			*out = resAPI
+			return nil
+		},
+	)
+}
+
+func Web3FullAPI(web3API *web3.FullWeb3Interface) Option {
+	return Options(
+		Web3API(&web3API.Web3),
+		NetAPI(&web3API.Net),
+		EthAPI(&web3API.Eth),
+		TraceAPI(&web3API.Trace),
+	)
+}
+
+func Web3API(out *web3.Web3Info) Option {
+	return Options(
+		func(s *Settings) error {
+			resAPI := &web3impl.Web3InfoAPI{}
+			s.invokes[Web3APIKey] = fx.Populate(resAPI)
+			*out = resAPI
+			return nil
+		},
+	)
+}
+
+func NetAPI(out *web3.NetInfo) Option {
+	return Options(
+		func(s *Settings) error {
+			resAPI := &web3impl.NetInfoAPI{}
+			s.invokes[NetAPIKey] = fx.Populate(resAPI)
+			*out = resAPI
+			return nil
+		},
+	)
+}
+
+func EthAPI(out *web3.EthFunctionality) Option {
+	return Options(
+		func(s *Settings) error {
+			resAPI := &web3impl.EthFunctionalityAPI{}
+			s.invokes[EthAPIKey] = fx.Populate(resAPI)
+			*out = resAPI
+			return nil
+		},
+	)
+}
+
+func TraceAPI(out *web3.TraceFunctionality) Option {
+	return Options(
+		func(s *Settings) error {
+			resAPI := &web3impl.TraceFunctionalityAPI{}
+			s.invokes[TraceAPIKey] = fx.Populate(resAPI)
 			*out = resAPI
 			return nil
 		},
