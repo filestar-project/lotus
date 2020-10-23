@@ -668,7 +668,7 @@ uiLoop:
 			state = "find-budget"
 		case "find-budget":
 			fmt.Printf("Proposing from %s, Current Balance: %s\n", a, types.FIL(fromBal))
-			fmt.Print("Maximum budget (FIL): ") // TODO: Propose some default somehow?
+			fmt.Print("Maximum budget (STAR): ") // TODO: Propose some default somehow?
 
 			_budgetStr, _, err := rl.ReadLine()
 			budgetStr := string(_budgetStr)
@@ -679,7 +679,7 @@ uiLoop:
 
 			budget, err = types.ParseFIL(budgetStr)
 			if err != nil {
-				printErr(xerrors.Errorf("parsing FIL: %w", err))
+				printErr(xerrors.Errorf("parsing STAR: %w", err))
 				continue uiLoop
 			}
 
@@ -957,7 +957,7 @@ var clientRetrieveCmd = &cli.Command{
 		},
 		&cli.StringFlag{
 			Name:  "maxPrice",
-			Usage: fmt.Sprintf("maximum price the client is willing to consider (default: %d FIL)", DefaultMaxRetrievePrice),
+			Usage: fmt.Sprintf("maximum price the client is willing to consider (default: %d STAR)", DefaultMaxRetrievePrice),
 		},
 		&cli.StringFlag{
 			Name:  "pieceCid",
