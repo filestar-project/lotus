@@ -202,7 +202,7 @@ var findMinersCmd = &cli.Command{
 
 var recoverMinersCmd = &cli.Command{
 	Name:  "recover-miners",
-	Usage: "Ensure all miners with a negative available balance have a FIL surplus across accounts",
+	Usage: "Ensure all miners with a negative available balance have a STAR surplus across accounts",
 	Flags: []cli.Flag{
 		&cli.StringFlag{
 			Name:    "from",
@@ -393,13 +393,13 @@ var runCmd = &cli.Command{
 		&cli.IntFlag{
 			Name:    "miner-recovery-cutoff",
 			EnvVars: []string{"LOTUS_PCR_MINER_RECOVERY_CUTOFF"},
-			Usage:   "maximum amount of FIL that can be sent to any one miner before refund percent is applied",
+			Usage:   "maximum amount of STAR that can be sent to any one miner before refund percent is applied",
 			Value:   3000,
 		},
 		&cli.IntFlag{
 			Name:    "miner-recovery-bonus",
 			EnvVars: []string{"LOTUS_PCR_MINER_RECOVERY_BONUS"},
-			Usage:   "additional FIL to send to each miner",
+			Usage:   "additional STAR to send to each miner",
 			Value:   5,
 		},
 		&cli.IntFlag{

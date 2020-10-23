@@ -12,7 +12,7 @@ import (
 type FIL BigInt
 
 func (f FIL) String() string {
-	return f.Unitless() + " FIL"
+	return f.Unitless() + " STAR"
 }
 
 func (f FIL) Unitless() string {
@@ -53,8 +53,8 @@ func ParseFIL(s string) (FIL, error) {
 	if suffix != "" {
 		norm := strings.ToLower(strings.TrimSpace(suffix))
 		switch norm {
-		case "", "fil":
-		case "attofil", "afil":
+		case "", "star":
+		case "attostar", "astar":
 			attofil = true
 		default:
 			return FIL{}, fmt.Errorf("unrecognized suffix: %q", suffix)
