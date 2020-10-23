@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"math"
 	"math/rand"
 	"os"
 	"path/filepath"
@@ -82,11 +81,9 @@ var clientCmd = &cli.Command{
 		WithCategory("storage", clientListDeals),
 		WithCategory("storage", clientGetDealCmd),
 		WithCategory("storage", clientListAsksCmd),
-		WithCategory("storage", clientDealStatsCmd),
 		WithCategory("data", clientImportCmd),
 		WithCategory("data", clientDropCmd),
 		WithCategory("data", clientLocalCmd),
-		WithCategory("data", clientStat),
 		WithCategory("retrieval", clientFindCmd),
 		WithCategory("retrieval", clientRetrieveCmd),
 		WithCategory("util", clientCommPCmd),
@@ -94,7 +91,6 @@ var clientCmd = &cli.Command{
 		WithCategory("util", clientInfoCmd),
 		WithCategory("util", clientListTransfers),
 		WithCategory("util", clientRestartTransfer),
-		WithCategory("util", clientCancelTransfer),
 	},
 }
 
@@ -326,9 +322,9 @@ var clientDealCmd = &cli.Command{
 			Value: true,
 		},
 		&cli.BoolFlag{
-			Name:        "verified-deal",
-			Usage:       "indicate that the deal counts towards verified client total",
-			DefaultText: "true if client is verified, false otherwise",
+			Name:  "verified-deal",
+			Usage: "indicate that the deal counts towards verified client total",
+			Value: false,
 		},
 		&cli.StringFlag{
 			Name:  "provider-collateral",
@@ -495,7 +491,7 @@ func interactiveDeal(cctx *cli.Context) error {
 	var dur time.Duration
 	var epochs abi.ChainEpoch
 	var verified bool
-	var ds lapi.DataCIDSize
+	var ds lapi.DataSize
 
 	// find
 	var candidateAsks []*storagemarket.StorageAsk
@@ -559,7 +555,7 @@ uiLoop:
 			}
 
 			color.Blue(".. calculating data size\n")
-			ds, err = api.ClientDealPieceCID(ctx, data)
+			ds, err = api.ClientDealSize(ctx, data)
 			if err != nil {
 				return err
 			}
@@ -655,26 +651,26 @@ uiLoop:
 				state = "find"
 			}
 		case "find":
-			asks, err := GetAsks(ctx, api)
+			asks, err := getAsks(ctx, api)
 			if err != nil {
 				return err
 			}
 
 			for _, ask := range asks {
-				if ask.Ask.MinPieceSize > ds.PieceSize {
+				if ask.MinPieceSize > ds.PieceSize {
 					continue
 				}
-				if ask.Ask.MaxPieceSize < ds.PieceSize {
+				if ask.MaxPieceSize < ds.PieceSize {
 					continue
 				}
-				candidateAsks = append(candidateAsks, ask.Ask)
+				candidateAsks = append(candidateAsks, ask)
 			}
 
 			afmt.Printf("Found %d candidate asks\n", len(candidateAsks))
 			state = "find-budget"
 		case "find-budget":
 			afmt.Printf("Proposing from %s, Current Balance: %s\n", a, types.FIL(fromBal))
-			afmt.Print("Maximum budget (STAR): ") // TODO: Propose some default somehow?
+			afmt.Print("Maximum budget (FIL): ") // TODO: Propose some default somehow?
 
 			_budgetStr, _, err := rl.ReadLine()
 			budgetStr := string(_budgetStr)
@@ -849,9 +845,6 @@ uiLoop:
 					Data: &storagemarket.DataRef{
 						TransferType: storagemarket.TTGraphsync,
 						Root:         data,
-
-						PieceCid:  &ds.PieceCID,
-						PieceSize: ds.PieceSize.Unpadded(),
 					},
 					Wallet:            a,
 					Miner:             maddr,
@@ -1114,88 +1107,9 @@ var clientRetrieveCmd = &cli.Command{
 	},
 }
 
-var clientDealStatsCmd = &cli.Command{
-	Name:  "deal-stats",
-	Usage: "Print statistics about local storage deals",
-	Flags: []cli.Flag{
-		&cli.DurationFlag{
-			Name: "newer-than",
-		},
-	},
-	Action: func(cctx *cli.Context) error {
-		api, closer, err := GetFullNodeAPI(cctx)
-		if err != nil {
-			return err
-		}
-		defer closer()
-		ctx := ReqContext(cctx)
-
-		localDeals, err := api.ClientListDeals(ctx)
-		if err != nil {
-			return err
-		}
-
-		var totalSize uint64
-		byState := map[storagemarket.StorageDealStatus][]uint64{}
-		for _, deal := range localDeals {
-			if cctx.IsSet("newer-than") {
-				if time.Now().Sub(deal.CreationTime) > cctx.Duration("newer-than") {
-					continue
-				}
-			}
-
-			totalSize += deal.Size
-			byState[deal.State] = append(byState[deal.State], deal.Size)
-		}
-
-		fmt.Printf("Total: %d deals, %s\n", len(localDeals), types.SizeStr(types.NewInt(totalSize)))
-
-		type stateStat struct {
-			state storagemarket.StorageDealStatus
-			count int
-			bytes uint64
-		}
-
-		stateStats := make([]stateStat, 0, len(byState))
-		for state, deals := range byState {
-			if state == storagemarket.StorageDealActive {
-				state = math.MaxUint64 // for sort
-			}
-
-			st := stateStat{
-				state: state,
-				count: len(deals),
-			}
-			for _, b := range deals {
-				st.bytes += b
-			}
-
-			stateStats = append(stateStats, st)
-		}
-
-		sort.Slice(stateStats, func(i, j int) bool {
-			return int64(stateStats[i].state) < int64(stateStats[j].state)
-		})
-
-		for _, st := range stateStats {
-			if st.state == math.MaxUint64 {
-				st.state = storagemarket.StorageDealActive
-			}
-			fmt.Printf("%s: %d deals, %s\n", storagemarket.DealStates[st.state], st.count, types.SizeStr(types.NewInt(st.bytes)))
-		}
-
-		return nil
-	},
-}
-
 var clientListAsksCmd = &cli.Command{
 	Name:  "list-asks",
 	Usage: "List asks for top miners",
-	Flags: []cli.Flag{
-		&cli.BoolFlag{
-			Name: "by-ping",
-		},
-	},
 	Action: func(cctx *cli.Context) error {
 		api, closer, err := GetFullNodeAPI(cctx)
 		if err != nil {
@@ -1204,26 +1118,17 @@ var clientListAsksCmd = &cli.Command{
 		defer closer()
 		ctx := ReqContext(cctx)
 
-		asks, err := GetAsks(ctx, api)
+		asks, err := getAsks(ctx, api)
 		if err != nil {
 			return err
 		}
 
-		if cctx.Bool("by-ping") {
-			sort.Slice(asks, func(i, j int) bool {
-				return asks[i].Ping < asks[j].Ping
-			})
-		}
-
-		for _, a := range asks {
-			ask := a.Ask
-
-			fmt.Printf("%s: min:%s max:%s price:%s/GiB/Epoch verifiedPrice:%s/GiB/Epoch ping:%s\n", ask.Miner,
+		for _, ask := range asks {
+			fmt.Printf("%s: min:%s max:%s price:%s/GiB/Epoch verifiedPrice:%s/GiB/Epoch\n", ask.Miner,
 				types.SizeStr(types.NewInt(uint64(ask.MinPieceSize))),
 				types.SizeStr(types.NewInt(uint64(ask.MaxPieceSize))),
 				types.FIL(ask.Price),
 				types.FIL(ask.VerifiedPrice),
-				a.Ping,
 			)
 		}
 
@@ -1231,12 +1136,7 @@ var clientListAsksCmd = &cli.Command{
 	},
 }
 
-type QueriedAsk struct {
-	Ask  *storagemarket.StorageAsk
-	Ping time.Duration
-}
-
-func GetAsks(ctx context.Context, api lapi.FullNode) ([]QueriedAsk, error) {
+func getAsks(ctx context.Context, api lapi.FullNode) ([]*storagemarket.StorageAsk, error) {
 	color.Blue(".. getting miner list")
 	miners, err := api.StateListMiners(ctx, types.EmptyTSK)
 	if err != nil {
@@ -1291,7 +1191,7 @@ loop:
 
 	color.Blue(".. querying asks")
 
-	var asks []QueriedAsk
+	var asks []*storagemarket.StorageAsk
 	var queried, got int64
 
 	done = make(chan struct{})
@@ -1327,19 +1227,9 @@ loop:
 					return
 				}
 
-				rt := time.Now()
-
-				_, err = api.ClientQueryAsk(ctx, *mi.PeerId, miner)
-				if err != nil {
-					return
-				}
-
 				atomic.AddInt64(&got, 1)
 				lk.Lock()
-				asks = append(asks, QueriedAsk{
-					Ask:  ask,
-					Ping: time.Now().Sub(rt),
-				})
+				asks = append(asks, ask)
 				lk.Unlock()
 			}(miner)
 		}
@@ -1357,7 +1247,7 @@ loop2:
 	fmt.Printf("\r* Queried %d asks, got %d responses\n", atomic.LoadInt64(&queried), atomic.LoadInt64(&got))
 
 	sort.Slice(asks, func(i, j int) bool {
-		return asks[i].Ask.Price.LessThan(asks[j].Ask.Price)
+		return asks[i].Price.LessThan(asks[j].Price)
 	})
 
 	return asks, nil
@@ -1429,7 +1319,6 @@ var clientQueryAskCmd = &cli.Command{
 		afmt.Printf("Price per GiB: %s\n", types.FIL(ask.Price))
 		afmt.Printf("Verified Price per GiB: %s\n", types.FIL(ask.VerifiedPrice))
 		afmt.Printf("Max Piece size: %s\n", types.SizeStr(types.NewInt(uint64(ask.MaxPieceSize))))
-		afmt.Printf("Min Piece size: %s\n", types.SizeStr(types.NewInt(uint64(ask.MinPieceSize))))
 
 		size := cctx.Int64("size")
 		if size == 0 {
@@ -1749,39 +1638,6 @@ var clientInfoCmd = &cli.Command{
 	},
 }
 
-var clientStat = &cli.Command{
-	Name:      "stat",
-	Usage:     "Print information about a locally stored file (piece size, etc)",
-	ArgsUsage: "<cid>",
-	Action: func(cctx *cli.Context) error {
-		api, closer, err := GetFullNodeAPI(cctx)
-		if err != nil {
-			return err
-		}
-		defer closer()
-		ctx := ReqContext(cctx)
-
-		if !cctx.Args().Present() || cctx.NArg() != 1 {
-			return fmt.Errorf("must specify cid of data")
-		}
-
-		dataCid, err := cid.Parse(cctx.Args().First())
-		if err != nil {
-			return fmt.Errorf("parsing data cid: %w", err)
-		}
-
-		ds, err := api.ClientDealSize(ctx, dataCid)
-		if err != nil {
-			return err
-		}
-
-		fmt.Printf("Piece Size  : %v\n", ds.PieceSize)
-		fmt.Printf("Payload Size: %v\n", ds.PayloadSize)
-
-		return nil
-	},
-}
-
 var clientRestartTransfer = &cli.Command{
 	Name:  "restart-transfer",
 	Usage: "Force restart a stalled data transfer",
@@ -1842,66 +1698,6 @@ var clientRestartTransfer = &cli.Command{
 	},
 }
 
-var clientCancelTransfer = &cli.Command{
-	Name:  "cancel-transfer",
-	Usage: "Force cancel a data transfer",
-	Flags: []cli.Flag{
-		&cli.StringFlag{
-			Name:  "peerid",
-			Usage: "narrow to transfer with specific peer",
-		},
-		&cli.BoolFlag{
-			Name:  "initiator",
-			Usage: "specify only transfers where peer is/is not initiator",
-			Value: true,
-		},
-	},
-	Action: func(cctx *cli.Context) error {
-		if !cctx.Args().Present() {
-			return cli.ShowCommandHelp(cctx, cctx.Command.Name)
-		}
-		api, closer, err := GetFullNodeAPI(cctx)
-		if err != nil {
-			return err
-		}
-		defer closer()
-		ctx := ReqContext(cctx)
-
-		transferUint, err := strconv.ParseUint(cctx.Args().First(), 10, 64)
-		if err != nil {
-			return fmt.Errorf("Error reading transfer ID: %w", err)
-		}
-		transferID := datatransfer.TransferID(transferUint)
-		initiator := cctx.Bool("initiator")
-		var other peer.ID
-		if pidstr := cctx.String("peerid"); pidstr != "" {
-			p, err := peer.Decode(pidstr)
-			if err != nil {
-				return err
-			}
-			other = p
-		} else {
-			channels, err := api.ClientListDataTransfers(ctx)
-			if err != nil {
-				return err
-			}
-			found := false
-			for _, channel := range channels {
-				if channel.IsInitiator == initiator && channel.TransferID == transferID {
-					other = channel.OtherPeer
-					found = true
-					break
-				}
-			}
-			if !found {
-				return errors.New("unable to find matching data transfer")
-			}
-		}
-
-		return api.ClientCancelDataTransfer(ctx, transferID, other, initiator)
-	},
-}
-
 var clientListTransfers = &cli.Command{
 	Name:  "list-transfers",
 	Usage: "List ongoing data transfers for deals",
@@ -1918,10 +1714,6 @@ var clientListTransfers = &cli.Command{
 		&cli.BoolFlag{
 			Name:  "watch",
 			Usage: "watch deal updates in real-time, rather than a one time list",
-		},
-		&cli.BoolFlag{
-			Name:  "show-failed",
-			Usage: "show failed/cancelled transfers",
 		},
 	},
 	Action: func(cctx *cli.Context) error {
@@ -1940,7 +1732,7 @@ var clientListTransfers = &cli.Command{
 		completed := cctx.Bool("completed")
 		color := cctx.Bool("color")
 		watch := cctx.Bool("watch")
-		showFailed := cctx.Bool("show-failed")
+
 		if watch {
 			channelUpdates, err := api.ClientDataTransferUpdates(ctx)
 			if err != nil {
@@ -1952,7 +1744,7 @@ var clientListTransfers = &cli.Command{
 
 				tm.MoveCursor(1, 1)
 
-				OutputDataTransferChannels(tm.Screen, channels, completed, color, showFailed)
+				OutputDataTransferChannels(tm.Screen, channels, completed, color)
 
 				tm.Flush()
 
@@ -1977,13 +1769,13 @@ var clientListTransfers = &cli.Command{
 				}
 			}
 		}
-		OutputDataTransferChannels(os.Stdout, channels, completed, color, showFailed)
+		OutputDataTransferChannels(os.Stdout, channels, completed, color)
 		return nil
 	},
 }
 
 // OutputDataTransferChannels generates table output for a list of channels
-func OutputDataTransferChannels(out io.Writer, channels []lapi.DataTransferChannel, completed bool, color bool, showFailed bool) {
+func OutputDataTransferChannels(out io.Writer, channels []lapi.DataTransferChannel, completed bool, color bool) {
 	sort.Slice(channels, func(i, j int) bool {
 		return channels[i].TransferID < channels[j].TransferID
 	})
@@ -1991,9 +1783,6 @@ func OutputDataTransferChannels(out io.Writer, channels []lapi.DataTransferChann
 	var receivingChannels, sendingChannels []lapi.DataTransferChannel
 	for _, channel := range channels {
 		if !completed && channel.Status == datatransfer.Completed {
-			continue
-		}
-		if !showFailed && (channel.Status == datatransfer.Failed || channel.Status == datatransfer.Cancelled) {
 			continue
 		}
 		if channel.IsSender {

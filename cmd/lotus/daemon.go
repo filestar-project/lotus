@@ -16,6 +16,7 @@ import (
 	"strings"
 
 	paramfetch "github.com/filecoin-project/go-paramfetch"
+	"github.com/filecoin-project/specs-actors/v2/actors/builtin/contract"
 	metricsprom "github.com/ipfs/go-metrics-prometheus"
 	"github.com/mitchellh/go-homedir"
 	"github.com/multiformats/go-multiaddr"
@@ -190,6 +191,7 @@ var DaemonCmd = &cli.Command{
 		if err != nil {
 			return xerrors.Errorf("opening fs repo: %w", err)
 		}
+		contract.PathToRepo = cctx.String("repo")
 
 		if cctx.String("config") != "" {
 			r.SetConfigPath(cctx.String("config"))
