@@ -156,12 +156,12 @@ var setAskCmd = &cli.Command{
 	Flags: []cli.Flag{
 		&cli.StringFlag{
 			Name:     "price",
-			Usage:    "Set the price of the ask for unverified deals (specified as FIL / GiB / Epoch) to `PRICE`.",
+			Usage:    "Set the price of the ask for unverified deals (specified as STAR / GiB / Epoch) to `PRICE`.",
 			Required: true,
 		},
 		&cli.StringFlag{
 			Name:     "verified-price",
-			Usage:    "Set the price of the ask for verified deals (specified as FIL / GiB / Epoch) to `PRICE`",
+			Usage:    "Set the price of the ask for verified deals (specified as STAR / GiB / Epoch) to `PRICE`",
 			Required: true,
 		},
 		&cli.StringFlag{

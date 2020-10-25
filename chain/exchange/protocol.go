@@ -18,11 +18,11 @@ var log = logging.Logger("chainxchg")
 const (
 	// BlockSyncProtocolID is the protocol ID of the former blocksync protocol.
 	// Deprecated.
-	BlockSyncProtocolID = "/fil/sync/blk/0.0.1"
+	BlockSyncProtocolID = "/star/sync/blk/0.0.1"
 
 	// ChainExchangeProtocolID is the protocol ID of the chain exchange
 	// protocol.
-	ChainExchangeProtocolID = "/fil/chain/xchg/0.0.1"
+	ChainExchangeProtocolID = "/star/chain/xchg/0.0.1"
 )
 
 // FIXME: Bumped from original 800 to this to accommodate `syncFork()`

@@ -74,7 +74,7 @@ var genesisVerifyCmd = &cli.Command{
 
 		fmt.Println("Genesis: ", ts.Key())
 		expFIL := big.Mul(big.NewInt(int64(build.FilBase)), big.NewInt(int64(build.FilecoinPrecision)))
-		fmt.Printf("Total FIL: %s", types.FIL(total))
+		fmt.Printf("Total STAR: %s", types.FIL(total))
 		if !expFIL.Equals(total) {
 			color.Red("  INCORRECT!")
 		}
