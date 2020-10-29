@@ -10,10 +10,10 @@ import (
 
 // Core network constants
 
-func BlocksTopic(netName dtypes.NetworkName) string   { return "/fil/blocks/" + string(netName) }
-func MessagesTopic(netName dtypes.NetworkName) string { return "/fil/msgs/" + string(netName) }
+func BlocksTopic(netName dtypes.NetworkName) string   { return "/star/blocks/" + string(netName) }
+func MessagesTopic(netName dtypes.NetworkName) string { return "/star/msgs/" + string(netName) }
 func DhtProtocolName(netName dtypes.NetworkName) protocol.ID {
-	return protocol.ID("/fil/kad/" + string(netName))
+	return protocol.ID("/star/kad/" + string(netName))
 }
 
 func SetAddressNetwork(n address.Network) {

@@ -23,7 +23,7 @@ import (
 	"github.com/filecoin-project/lotus/lib/peermgr"
 )
 
-const ProtocolID = "/fil/hello/1.0.0"
+const ProtocolID = "/star/hello/1.0.0"
 
 var log = logging.Logger("hello")
 

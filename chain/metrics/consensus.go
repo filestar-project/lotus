@@ -18,7 +18,7 @@ import (
 
 var log = logging.Logger("metrics")
 
-const baseTopic = "/fil/headnotifs/"
+const baseTopic = "/star/headnotifs/"
 
 type Update struct {
 	Type string
