@@ -17,4 +17,3 @@
 [submodule "extern/specs-actors"]
 	path = extern/specs-actors
 	url = https://github.com/filestar-project/specs-actors.git
-	branch = testnet/1.1.0
