@@ -41,6 +41,7 @@ const UpgradeKumquatHeight = 3
 func init() {
 	policy.SetConsensusMinerMinPower(abi.NewStoragePower(32 << 30))
 	policy.SetSupportedProofTypes(
+		abi.RegisteredSealProof_StackedDrg8GiBV1, // TODO enable after fork height
 		abi.RegisteredSealProof_StackedDrg32GiBV1,
 		abi.RegisteredSealProof_StackedDrg64GiBV1,
 	)
