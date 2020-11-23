@@ -60,6 +60,10 @@ type SectorManager interface {
 type WorkerID uuid.UUID // worker session UUID
 var ClosedWorkerID = uuid.UUID{}
 
+func (w WorkerID) String() string {
+	return uuid.UUID(w).String()
+}
+
 type Manager struct {
 	scfg *ffiwrapper.Config
 
