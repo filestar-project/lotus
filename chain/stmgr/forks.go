@@ -665,6 +665,8 @@ func Upgrade8GiBSector(ctx context.Context, sm *StateManager, cb ExecCallback, r
 	policy.AddSupportedProofTypes(
 		abi.RegisteredSealProof_StackedDrg8GiBV1,
 	)
+	build.BlockGasLimit = build.BlockGasLimit * 4
+	build.BlockGasTarget = build.BlockGasTarget * 4
 	return tree.Flush(ctx)
 }
 

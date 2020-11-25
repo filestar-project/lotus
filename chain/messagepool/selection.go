@@ -18,8 +18,6 @@ import (
 	"github.com/filecoin-project/lotus/chain/vm"
 )
 
-var bigBlockGasLimit = big.NewInt(build.BlockGasLimit)
-
 // this is *temporary* mutilation until we have implemented uncapped miner penalties -- it will go
 // away in the next fork.
 func allowNegativeChains(epoch abi.ChainEpoch) bool {
@@ -681,6 +679,7 @@ func (*MessagePool) getGasReward(msg *types.SignedMessage, baseFee types.BigInt)
 
 func (*MessagePool) getGasPerf(gasReward *big.Int, gasLimit int64) float64 {
 	// gasPerf = gasReward * build.BlockGasLimit / gasLimit
+	var bigBlockGasLimit = big.NewInt(build.BlockGasLimit)
 	a := new(big.Rat).SetInt(new(big.Int).Mul(gasReward, bigBlockGasLimit))
 	b := big.NewRat(1, gasLimit)
 	c := new(big.Rat).Mul(a, b)
