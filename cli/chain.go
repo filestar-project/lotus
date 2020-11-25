@@ -465,6 +465,9 @@ var chainInspectUsage = &cli.Command{
 
 			code, err := lookupActorCode(m.Message.To)
 			if err != nil {
+				if strings.Contains(err.Error(), types.ErrActorNotFound.Error()) {
+					continue
+				}
 				return err
 			}
 
