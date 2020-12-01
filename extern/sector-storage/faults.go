@@ -4,29 +4,26 @@ import (
 	"context"
 	"crypto/rand"
 	"fmt"
-	ffi "github.com/filecoin-project/filecoin-ffi"
 	"os"
 	"path/filepath"
 
-	"github.com/ipfs/go-cid"
+	"golang.org/x/xerrors"
 
+	ffi "github.com/filecoin-project/filecoin-ffi"
 	"github.com/filecoin-project/go-state-types/abi"
+	"github.com/filecoin-project/specs-actors/actors/runtime/proof"
 	"github.com/filecoin-project/specs-storage/storage"
 
 	"github.com/filecoin-project/lotus/extern/sector-storage/storiface"
-	"github.com/filecoin-project/specs-actors/actors/runtime/proof"
-	"golang.org/x/xerrors"
 )
 
 // FaultTracker TODO: Track things more actively
 type FaultTracker interface {
-	CheckProvable(ctx context.Context, pp abi.RegisteredPoStProof, sectors []storage.SectorRef, rg RGetter) (map[abi.SectorID]string, error)
+	CheckProvable(ctx context.Context, pp abi.RegisteredPoStProof, sectors []storage.SectorRef, rg storiface.RGetter) (map[abi.SectorID]string, error)
 }
 
-type RGetter func(ctx context.Context, id abi.SectorID) (cid.Cid, error)
-
 // CheckProvable returns unprovable sectors
-func (m *Manager) CheckProvable(ctx context.Context, pp abi.RegisteredPoStProof, sectors []storage.SectorRef, rg RGetter) (map[abi.SectorID]string, error) {
+func (m *Manager) CheckProvable(ctx context.Context, pp abi.RegisteredPoStProof, sectors []storage.SectorRef, rg storiface.RGetter) (map[abi.SectorID]string, error) {
 	var bad = make(map[abi.SectorID]string)
 
 	ssize, err := pp.SectorSize()
@@ -46,7 +43,7 @@ func (m *Manager) CheckProvable(ctx context.Context, pp abi.RegisteredPoStProof,
 			}
 
 			if !locked {
-				log.Warnw("CheckProvable Sector FAULT: can't acquire read lock", "sector", sector, "sealed")
+				log.Warnw("CheckProvable Sector FAULT: can't acquire read lock", "sector", sector)
 				bad[sector.ID] = fmt.Sprint("can't acquire read lock")
 				return nil
 			}
@@ -54,7 +51,7 @@ func (m *Manager) CheckProvable(ctx context.Context, pp abi.RegisteredPoStProof,
 			lp, _, err := m.localStore.AcquireSector(ctx, sector, storiface.FTSealed|storiface.FTCache, storiface.FTNone, storiface.PathStorage, storiface.AcquireMove)
 			if err != nil {
 				log.Warnw("CheckProvable Sector FAULT: acquire sector in checkProvable", "sector", sector, "error", err)
-				bad[sector.ID] = fmt.Sprint("can't acquire read lock")
+				bad[sector.ID] = fmt.Sprintf("acquire sector failed: %s", err)
 				return nil
 			}
 
