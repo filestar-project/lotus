@@ -13,6 +13,14 @@ var contractCmd = &cli.Command{
 	},
 }
 
+type contractCmdParams struct {
+}
+
+func newContractCmdParams(cctx *cli.Context) (*contractCmdParams, error) {
+	p := &contractCmdParams{}
+	return p, nil
+}
+
 var contractCreate = &cli.Command{
 	Name:      "create",
 	Usage:     "create smart contract",
