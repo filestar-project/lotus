@@ -16,4 +16,4 @@
 	url = https://github.com/filecoin-project/oni
 [submodule "extern/specs-actors"]
 	path = extern/specs-actors
-	url = https://github.com/filestar-project/specs-actors.git
+	url = git@gitlab.pixelplex.by:731-filecoin/specs-actors.git
