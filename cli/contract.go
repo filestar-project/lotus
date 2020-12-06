@@ -8,9 +8,13 @@ import (
 	"github.com/filecoin-project/go-address"
 	"github.com/filecoin-project/go-jsonrpc"
 	"github.com/filecoin-project/lotus/api"
+	"github.com/filecoin-project/lotus/chain/actors"
 	types "github.com/filecoin-project/lotus/chain/types"
+	"github.com/filecoin-project/specs-actors/v2/actors/builtin"
+	"github.com/filecoin-project/specs-actors/v2/actors/builtin/account"
 	cid "github.com/ipfs/go-cid"
 	"github.com/urfave/cli/v2"
+	"golang.org/x/xerrors"
 )
 
 var contractCmd = &cli.Command{
@@ -155,6 +159,11 @@ var contractCreate = &cli.Command{
 		}
 		defer p.closer()
 
+		params, err := actors.SerializeParams(&account.ContractCreateParams{Code: p.code})
+		if err != nil {
+			return xerrors.Errorf("failed to serialize contract create params: %w", err)
+		}
+
 		msg := &types.Message{
 			From:       p.from,
 			To:         p.to,
@@ -162,9 +171,9 @@ var contractCreate = &cli.Command{
 			GasPremium: p.gasPremium,
 			GasFeeCap:  p.gasFeeCap,
 			GasLimit:   p.gasLimit,
-			//			Method:     builtin.MethodsAccount.EVMContract_Create,
-			Params: p.code,
-			Nonce:  0,
+			Method:     builtin.MethodsAccount.CreateContract,
+			Params:     params,
+			Nonce:      0,
 		}
 
 		var cid cid.Cid
@@ -210,6 +219,11 @@ var contractCall = &cli.Command{
 		}
 		defer p.closer()
 
+		params, err := actors.SerializeParams(&account.ContractCallParams{Code: p.code})
+		if err != nil {
+			return xerrors.Errorf("failed to serialize contract call params: %w", err)
+		}
+
 		msg := &types.Message{
 			From:       p.from,
 			To:         p.to,
@@ -217,9 +231,9 @@ var contractCall = &cli.Command{
 			GasPremium: p.gasPremium,
 			GasFeeCap:  p.gasFeeCap,
 			GasLimit:   p.gasLimit,
-			//			Method:     builtin.MethodsAccount.EVMContract_Call,
-			Params: p.code,
-			Nonce:  0,
+			Method:     builtin.MethodsAccount.CallContract,
+			Params:     params,
+			Nonce:      0,
 		}
 
 		var cid cid.Cid
