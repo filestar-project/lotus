@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/filecoin-project/lotus/chain/actors/builtin"
+	builtin2 "github.com/filecoin-project/specs-actors/v2/actors/builtin"
 
 	block "github.com/ipfs/go-block-format"
 	cid "github.com/ipfs/go-cid"
@@ -295,6 +296,8 @@ func (vm *VM) send(ctx context.Context, msg *types.Message, parent *Runtime,
 			} else {
 				return nil, aerrors.Escalate(err, "getting actor")
 			}
+		} else if builtin.IsAccountActor(toActor.Code) && msg.Method == builtin2.MethodsAccount.CreateContract {
+			return nil, aerrors.Fatal("address already exists")
 		}
 
 		if aerr := rt.chargeGasSafe(rt.Pricelist().OnMethodInvocation(msg.Value, msg.Method)); aerr != nil {

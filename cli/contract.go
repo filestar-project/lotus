@@ -3,6 +3,7 @@ package cli
 import (
 	"context"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 
 	"github.com/filecoin-project/go-address"
@@ -10,6 +11,7 @@ import (
 	"github.com/filecoin-project/lotus/api"
 	"github.com/filecoin-project/lotus/chain/actors"
 	types "github.com/filecoin-project/lotus/chain/types"
+	"github.com/filecoin-project/lotus/chain/wallet"
 	"github.com/filecoin-project/specs-actors/v2/actors/builtin"
 	"github.com/filecoin-project/specs-actors/v2/actors/builtin/account"
 	cid "github.com/ipfs/go-cid"
@@ -40,7 +42,12 @@ type contractCmdParams struct {
 	nonce      uint64
 }
 
-func newContractCmdParams(cctx *cli.Context) (*contractCmdParams, error) {
+const (
+	contractCreateCommand = iota
+	contractCallCommand
+)
+
+func newContractCmdParams(cctx *cli.Context, cmd int) (*contractCmdParams, error) {
 	p := &contractCmdParams{}
 
 	api, closer, err := GetFullNodeAPI(cctx)
@@ -82,15 +89,31 @@ func newContractCmdParams(cctx *cli.Context) (*contractCmdParams, error) {
 		return nil, ShowHelp(cctx, fmt.Errorf("failed to parse amount: %w", err))
 	}
 
-	toAddr, err := address.NewFromString(cctx.Args().Get(1))
-	if toAddr == address.Undef {
+	indexAddr := -1
+	indexCode := 1
+	if cmd == contractCallCommand {
+		indexAddr = 1
+		indexCode = 2
+	}
+
+	var toAddr address.Address
+	if indexAddr != -1 {
+		toAddr, err := address.NewFromString(cctx.Args().Get(indexAddr))
+		if toAddr == address.Undef {
+			if err != nil {
+				return nil, err
+			}
+			return nil, ShowHelp(cctx, fmt.Errorf("contract address must be specified"))
+		}
+	} else {
+		key, err := wallet.GenerateKey(types.KTSecp256k1)
 		if err != nil {
 			return nil, err
 		}
-		return nil, ShowHelp(cctx, fmt.Errorf("contract address must be specified"))
+		toAddr = key.Address
 	}
 
-	code, err := hex.DecodeString(cctx.Args().Get(2))
+	code, err := hex.DecodeString(cctx.Args().Get(indexCode))
 	if err != nil {
 		return nil, fmt.Errorf("failed to decode contract code as hex param: %w", err)
 	}
@@ -142,10 +165,15 @@ var contractDefaultFlags = []cli.Flag{
 	},
 }
 
+type contractCreateInfo struct {
+	Cid     string
+	Address string
+}
+
 var contractCreate = &cli.Command{
 	Name:      "create",
 	Usage:     "create smart contract",
-	ArgsUsage: "[amount] [address] [contract-code]",
+	ArgsUsage: "[amount] [contract-code]",
 	Flags:     contractDefaultFlags,
 	Action: func(cctx *cli.Context) error {
 
@@ -153,7 +181,7 @@ var contractCreate = &cli.Command{
 			return ShowHelp(cctx, fmt.Errorf("'create' expects three arguments: amount, address and contract code"))
 		}
 
-		p, err := newContractCmdParams(cctx)
+		p, err := newContractCmdParams(cctx, contractCreateCommand)
 		if err != nil {
 			return err
 		}
@@ -197,10 +225,20 @@ var contractCreate = &cli.Command{
 			cid = sm.Cid()
 		}
 
-		fmt.Println(cid)
+		createInfo := &contractCreateInfo{Cid: cid.String(), Address: p.to.String()}
+		j, err := json.MarshalIndent(createInfo, "", "    ")
+		if err != nil {
+			return err
+		}
+
+		fmt.Println(string(j))
 
 		return nil
 	},
+}
+
+type contractCallInfo struct {
+	Cid string
 }
 
 var contractCall = &cli.Command{
@@ -213,7 +251,7 @@ var contractCall = &cli.Command{
 			return ShowHelp(cctx, fmt.Errorf("'call' expects three arguments: amount, address and contract code"))
 		}
 
-		p, err := newContractCmdParams(cctx)
+		p, err := newContractCmdParams(cctx, contractCallCommand)
 		if err != nil {
 			return err
 		}
@@ -257,7 +295,13 @@ var contractCall = &cli.Command{
 			cid = sm.Cid()
 		}
 
-		fmt.Println(cid)
+		callInfo := &contractCallInfo{Cid: cid.String()}
+		j, err := json.MarshalIndent(callInfo, "", "    ")
+		if err != nil {
+			return err
+		}
+
+		fmt.Println(string(j))
 
 		return nil
 	},
