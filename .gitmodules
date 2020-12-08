@@ -17,3 +17,6 @@
 [submodule "extern/specs-actors"]
 	path = extern/specs-actors
 	url = git@gitlab.pixelplex.by:731-filecoin/specs-actors.git
+[submodule "extern/evm-adapter"]
+	path = extern/evm-adapter
+	url = git@gitlab.pixelplex.by:731-filecoin/evm-adapter.git
