@@ -204,7 +204,7 @@ func (m *Sealing) logEvents(events []statemachine.Event, state *SectorInfo) {
 				Kind:      fmt.Sprintf("truncate"),
 			}
 
-			state.Log = append(state.Log[:2000], state.Log[:6000]...)
+			state.Log = append(state.Log[:2000], state.Log[6000:]...)
 		}
 
 		state.Log = append(state.Log, l)
