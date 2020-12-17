@@ -59,6 +59,26 @@
     "digest": "bd2cd62f65c1ab84f19ca27e97b7c731",
     "sector_size": 536870912
   },
+  "v28-proof-of-spacetime-fallback-merkletree-poseidon_hasher-8-2-0-236fc98201160195c89ff8092a0b58dac60bd393c38fbe5511c146794c5b2a86.params": {
+    "cid": "QmbN8CtLhh46uFSj62BHFhvyj9GxaBdDYWgfqDiHB2iCDH",
+    "digest": "a0b07b77122ec6d23b70f25f1e1268fb",
+    "sector_size": 8589934592
+  },
+  "v28-proof-of-spacetime-fallback-merkletree-poseidon_hasher-8-2-0-236fc98201160195c89ff8092a0b58dac60bd393c38fbe5511c146794c5b2a86.vk": {
+    "cid": "QmQHXzMbyPm1wpFp7GVFkoJWgThMaCwP21rNai3idV64RX",
+    "digest": "1c89c6ff2aa67c890cf7db3e61786db2",
+    "sector_size": 8589934592
+  },
+  "v28-proof-of-spacetime-fallback-merkletree-poseidon_hasher-8-2-0-eed57cd5d7103faedf245a91f0b8909afe37ffef57569f9cb49d9e824ac602ed.params": {
+    "cid": "Qmb9mkFaugnoH1KU5dTzGpipTFwwxZvhtuKcG5hmhxsQ1T",
+    "digest": "e06c7aae2210a6d6e4c0f9884b075511",
+    "sector_size": 8589934592
+  },
+  "v28-proof-of-spacetime-fallback-merkletree-poseidon_hasher-8-2-0-eed57cd5d7103faedf245a91f0b8909afe37ffef57569f9cb49d9e824ac602ed.vk": {
+    "cid": "QmYXaNeifwTaMjN5i8CXgjs3YhSQ7s2cfiNx9gAPBznLCh",
+    "digest": "9b774ea8edacfaff9913a1d950f4b784",
+    "sector_size": 8589934592
+  },
   "v28-proof-of-spacetime-fallback-merkletree-poseidon_hasher-8-8-0-0377ded656c6f524f1618760bffe4e0a1c51d5a70c4509eedae8a27555733edc.params": {
     "cid": "QmaUmfcJt6pozn8ndq1JVBzLRjRJdHMTPd4foa8iw5sjBZ",
     "digest": "2cf49eb26f1fee94c85781a390ddb4c8",
@@ -128,6 +148,16 @@
     "cid": "QmYCuipFyvVW1GojdMrjK1JnMobXtT4zRCZs1CGxjizs99",
     "digest": "b687beb9adbd9dabe265a7e3620813e4",
     "sector_size": 8388608
+  },
+  "v28-stacked-proof-of-replication-merkletree-poseidon_hasher-8-2-0-sha256_hasher-0851c48b1f810277cd9999e2d659d46abcb4a08ea35e7e2c57aa9574f94e3212.params": {
+    "cid": "QmbYjSWh9fTEpoK2J25LdkVGkL9sYJEnHPgtZRaLbJbwqh",
+    "digest": "f5cad1b6044c04c96ce0e3e4633e365d",
+    "sector_size": 8589934592
+  },
+  "v28-stacked-proof-of-replication-merkletree-poseidon_hasher-8-2-0-sha256_hasher-0851c48b1f810277cd9999e2d659d46abcb4a08ea35e7e2c57aa9574f94e3212.vk": {
+    "cid": "QmQUcLbh3mfDoe1EMHkDSmtm3cP4QHFyPiCYuQux7maXQG",
+    "digest": "794a9fc41f0bb2a969143431f295ea52",
+    "sector_size": 8589934592
   },
   "v28-stacked-proof-of-replication-merkletree-poseidon_hasher-8-8-0-sha256_hasher-82a357d2f2ca81dc61bb45f4a762807aedee1b0a53fd6c4e77b46a01bfef7820.params": {
     "cid": "QmengpM684XLQfG8754ToonszgEg2bQeAGUan5uXTHUQzJ",
