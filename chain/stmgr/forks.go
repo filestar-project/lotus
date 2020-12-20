@@ -93,7 +93,7 @@ func DefaultUpgradeSchedule() UpgradeSchedule {
 		Migration: nil,
 	}, {
 		Height:    build.Upgrade8GiBSectorHeight,
-		Network:   network.Version6,
+		Network:   network.Version7,
 		Migration: Upgrade8GiBSector,
 	}}
 
