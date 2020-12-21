@@ -20,3 +20,6 @@
 [submodule "extern/evm-adapter"]
 	path = extern/evm-adapter
 	url = git@gitlab.pixelplex.by:731-filecoin/evm-adapter.git
+[submodule "extern/go-state-types"]
+	path = extern/go-state-types
+	url = git@gitlab.pixelplex.by:731-filecoin/go-state-types.git
