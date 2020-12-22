@@ -558,6 +558,10 @@ func (rt *Runtime) chargeGasSafe(gas GasCharge) aerrors.ActorError {
 	return rt.chargeGasInternal(gas, 1)
 }
 
+func (rt *Runtime) GasLimit() int64 {
+	return rt.gasAvailable - rt.gasUsed
+}
+
 func (rt *Runtime) Pricelist() Pricelist {
 	return rt.pricelist
 }
