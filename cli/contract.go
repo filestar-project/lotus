@@ -98,13 +98,14 @@ func newContractCmdParams(cctx *cli.Context, cmd int) (*contractCmdParams, error
 
 	var toAddr address.Address
 	if indexAddr != -1 {
-		toAddr, err := address.NewFromString(cctx.Args().Get(indexAddr))
-		if toAddr == address.Undef {
+		a, err := address.NewFromString(cctx.Args().Get(indexAddr))
+		if a == address.Undef {
 			if err != nil {
 				return nil, err
 			}
 			return nil, ShowHelp(cctx, fmt.Errorf("contract address must be specified"))
 		}
+		toAddr = a
 	} else {
 		key, err := wallet.GenerateKey(types.KTSecp256k1)
 		if err != nil {
@@ -177,7 +178,7 @@ var contractCreate = &cli.Command{
 	Flags:     contractDefaultFlags,
 	Action: func(cctx *cli.Context) error {
 
-		if cctx.Args().Len() != 3 {
+		if cctx.Args().Len() != 2 {
 			return ShowHelp(cctx, fmt.Errorf("'create' expects three arguments: amount, address and contract code"))
 		}
 

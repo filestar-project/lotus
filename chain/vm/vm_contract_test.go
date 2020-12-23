@@ -1,19 +1,20 @@
 package vm_test
 
 import (
-	"bytes"
 	"context"
+	"encoding/hex"
 	"testing"
 
+	"github.com/filecoin-project/go-state-types/abi"
 	"github.com/filecoin-project/go-state-types/big"
 	"github.com/filecoin-project/lotus/chain/actors"
 	"github.com/filecoin-project/lotus/chain/gen"
-	"github.com/filecoin-project/lotus/chain/stmgr"
 	"github.com/filecoin-project/lotus/chain/types"
-	"github.com/filecoin-project/lotus/chain/vm"
 	"github.com/filecoin-project/lotus/chain/wallet"
+	c "github.com/filecoin-project/lotus/conformance"
+	"github.com/filecoin-project/test-vectors/schema"
 	"github.com/filestar-project/evm-adapter/tests"
-	"github.com/stretchr/testify/require"
+	r "github.com/stretchr/testify/require"
 
 	verifreg0 "github.com/filecoin-project/specs-actors/actors/builtin/verifreg"
 	"github.com/filecoin-project/specs-actors/v2/actors/builtin"
@@ -21,34 +22,41 @@ import (
 	logging "github.com/ipfs/go-log"
 )
 
-func TestCreateContract(t *testing.T) {
-	logging.SetAllLoggers(logging.LevelInfo)
+var log = logging.Logger("test")
+
+func TestCreateContract2(t *testing.T) {
+	logging.SetAllLoggers(logging.LevelDebug)
 
 	verifreg0.MinVerifiedDealSize = big.Zero()
-	ctx := context.TODO()
+
+	var (
+		ctx       = context.Background()
+		baseEpoch = abi.ChainEpoch(50)
+	)
 
 	cg, err := gen.NewGenerator()
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	sm := stmgr.NewStateManager(cg.ChainStore())
-
-	inv := vm.NewActorRegistry()
-	inv.Register(nil, account2.Actor{})
-
-	sm.SetVMConstructor(func(ctx context.Context, vmopt *vm.VMOpts) (*vm.VM, error) {
-		nvm, err := vm.NewVM(ctx, vmopt)
+	for i := 0; i < 5; i++ {
+		_, err := cg.NextTipSet()
 		if err != nil {
-			return nil, err
+			t.Fatal(err)
 		}
-		nvm.SetInvoker(inv)
-		return nvm, nil
-	})
+	}
 
-	cg.SetStateManager(sm)
+	ts, err := cg.NextTipSet()
+	if err != nil {
+		t.Fatal(err)
+	}
 
-	enc, err := actors.SerializeParams(&account2.ContractParams{Code: []byte(tests.HelloWorldContractCode)})
+	root := ts.TipSet.TipSet().ParentState()
+
+	code, err := hex.DecodeString(tests.HelloWorldContractCode)
+	r.NoError(t, err)
+
+	enc, err := actors.SerializeParams(&account2.ContractParams{Code: code})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -59,7 +67,13 @@ func TestCreateContract(t *testing.T) {
 	}
 	toAddress := key.Address
 
-	m := &types.Message{
+	sm := cg.StateManager()
+	act, err := sm.LoadActor(ctx, cg.Banker(), ts.TipSet.TipSet())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	msg := &types.Message{
 		From:       cg.Banker(),
 		To:         toAddress,
 		Method:     builtin.MethodsAccount.CreateContract,
@@ -68,29 +82,37 @@ func TestCreateContract(t *testing.T) {
 		Value:      types.NewInt(0),
 		GasPremium: types.NewInt(0),
 		GasFeeCap:  types.NewInt(0),
+		Nonce:      act.Nonce,
 	}
 
-	for i := 0; i < 5; i++ {
-		_, err := cg.NextTipSet()
-		if err != nil {
-			t.Fatal(err)
-		}
-	}
+	d := c.NewDriver(ctx, schema.Selector{}, c.DriverOpts{})
 
-	fn := func(checker func(t *testing.T, e error)) {
-		ts, err := cg.NextTipSet()
-		if err != nil {
-			t.Fatal(err)
-		}
+	ret, root, err := d.ExecuteMessage(cg.ChainStore().Blockstore(), c.ExecuteMessageParams{
+		Preroot:    root,
+		Epoch:      baseEpoch,
+		Message:    msg,
+		BaseFee:    c.DefaultBaseFee,
+		CircSupply: c.DefaultCirculatingSupply,
+	})
 
-		ret, err := sm.CallWithGas(ctx, m, nil, ts.TipSet.TipSet())
-		checker(t, err)
+	log.Infof("return: %+v\n\n", ret)
 
-		var result account2.ContractResult
-		err = result.UnmarshalCBOR(bytes.NewReader(ret.MsgRct.Return))
-		checker(t, err)
-	}
+	r.NoError(t, err)
+	r.NotNil(t, ret)
 
-	fn(func(t *testing.T, e error) { require.NoError(t, e) })
-	fn(func(t *testing.T, e error) { require.Error(t, e) })
+	msg.Nonce++
+
+	// try to create the same contract one more time
+	ret, root, err = d.ExecuteMessage(cg.ChainStore().Blockstore(), c.ExecuteMessageParams{
+		Preroot:    root,
+		Epoch:      baseEpoch + 1,
+		Message:    msg,
+		BaseFee:    c.DefaultBaseFee,
+		CircSupply: c.DefaultCirculatingSupply,
+	})
+
+	log.Infof("return:\n %+v\n%+v\n\n", err, ret)
+
+	r.Error(t, err)
+	r.Nil(t, ret)
 }

@@ -24,7 +24,6 @@ endif
 
 GOFLAGS+=-ldflags="$(ldflags)"
 
-
 ## FFI
 
 FFI_PATH:=extern/filecoin-ffi/
@@ -58,6 +57,7 @@ deps: $(BUILD_DEPS)
 .PHONY: deps
 
 debug: GOFLAGS+=-tags=debug
+debug: GOFLAGS+=-gcflags=all="-N -l"
 debug: lotus lotus-miner lotus-worker lotus-seed
 
 2k: GOFLAGS+=-tags=2k
