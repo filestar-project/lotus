@@ -39,7 +39,7 @@ const UpgradeLiftoffHeight = 2
 
 const UpgradeKumquatHeight = 3
 
-const Upgrade8GiBSectorHeight = math.MaxInt64
+const Upgrade8GiBSectorHeight = 184560
 
 func init() {
 	policy.SetConsensusMinerMinPower(abi.NewStoragePower(32 << 30))
