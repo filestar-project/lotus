@@ -1,6 +1,7 @@
 package vm_test
 
 import (
+	"bytes"
 	"context"
 	"encoding/hex"
 	"testing"
@@ -24,7 +25,7 @@ import (
 
 var log = logging.Logger("test")
 
-func TestCreateContract2(t *testing.T) {
+func TestHelloWorldContract(t *testing.T) {
 	logging.SetAllLoggers(logging.LevelDebug)
 
 	verifreg0.MinVerifiedDealSize = big.Zero()
@@ -103,7 +104,7 @@ func TestCreateContract2(t *testing.T) {
 	msg.Nonce++
 
 	// try to create the same contract one more time
-	ret, root, err = d.ExecuteMessage(cg.ChainStore().Blockstore(), c.ExecuteMessageParams{
+	ret, _, err = d.ExecuteMessage(cg.ChainStore().Blockstore(), c.ExecuteMessageParams{
 		Preroot:    root,
 		Epoch:      baseEpoch + 1,
 		Message:    msg,
@@ -115,4 +116,40 @@ func TestCreateContract2(t *testing.T) {
 
 	r.Error(t, err)
 	r.Nil(t, ret)
+
+	// try to call contract
+	msg.Method = builtin.MethodsAccount.CallContract
+
+	funcSig, err := hex.DecodeString(tests.HelloWorldFuncSignature)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	enc, err = actors.SerializeParams(&account2.ContractParams{Code: funcSig})
+	if err != nil {
+		t.Fatal(err)
+	}
+	msg.Params = enc
+
+	ret, root, err = d.ExecuteMessage(cg.ChainStore().Blockstore(), c.ExecuteMessageParams{
+		Preroot:    root,
+		Epoch:      baseEpoch + 1,
+		Message:    msg,
+		BaseFee:    c.DefaultBaseFee,
+		CircSupply: c.DefaultCirculatingSupply,
+	})
+
+	log.Infof("return: %+v\n\n", ret)
+
+	r.NoError(t, err)
+	r.NotNil(t, ret)
+
+	var result account2.ContractResult
+	err = result.UnmarshalCBOR(bytes.NewReader(ret.MessageReceipt.Return))
+	r.NoError(t, err)
+
+	stringReturn := string(result.Value)
+	r.Contains(t, stringReturn, tests.HelloWorldFuncReturn)
+
+	log.Infof("return string: %v\n", stringReturn)
 }
