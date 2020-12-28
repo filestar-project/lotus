@@ -1,5 +1,6 @@
 // +build !debug
 // +build !2k
+// +build !8g
 // +build !testground
 
 package build
@@ -37,6 +38,8 @@ const UpgradeTapeHeight = -4
 const UpgradeLiftoffHeight = 2
 
 const UpgradeKumquatHeight = 3
+
+const Upgrade8GiBSectorHeight = 184560
 
 func init() {
 	policy.SetConsensusMinerMinPower(abi.NewStoragePower(32 << 30))

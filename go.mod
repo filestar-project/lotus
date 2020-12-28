@@ -155,3 +155,7 @@ replace github.com/supranational/blst => ./extern/fil-blst/blst
 replace github.com/filecoin-project/fil-blst => ./extern/fil-blst
 
 replace github.com/filecoin-project/specs-actors/v2 => ./extern/specs-actors
+
+replace github.com/filecoin-project/go-state-types => ./extern/go-state-types
+
+replace github.com/filecoin-project/go-paramfetch => github.com/filestar-project/go-paramfetch v0.0.2

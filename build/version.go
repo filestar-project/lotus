@@ -12,6 +12,7 @@ var BuildType int
 const (
 	BuildDefault = 0
 	Build2k      = 0x1
+	Build8g      = 0x2
 	BuildDebug   = 0x3
 )
 
@@ -23,6 +24,8 @@ func buildType() string {
 		return "+debug"
 	case Build2k:
 		return "+2k"
+	case Build8g:
+		return "+8g"
 	default:
 		return "+huh?"
 	}

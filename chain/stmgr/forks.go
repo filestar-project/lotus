@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/binary"
+	"github.com/filecoin-project/lotus/chain/actors/policy"
 	"math"
 
 	"github.com/filecoin-project/lotus/chain/actors/builtin"
@@ -90,6 +91,10 @@ func DefaultUpgradeSchedule() UpgradeSchedule {
 		Height:    build.UpgradeKumquatHeight,
 		Network:   network.Version6,
 		Migration: nil,
+	}, {
+		Height:    build.Upgrade8GiBSectorHeight,
+		Network:   network.Version7,
+		Migration: Upgrade8GiBSector,
 	}}
 
 	if build.UpgradeActorsV2Height == math.MaxInt64 { // disable actors upgrade
@@ -649,6 +654,19 @@ func UpgradeLiftoff(ctx context.Context, sm *StateManager, cb ExecCallback, root
 		return cid.Undef, xerrors.Errorf("setting network name: %w", err)
 	}
 
+	return tree.Flush(ctx)
+}
+
+func Upgrade8GiBSector(ctx context.Context, sm *StateManager, cb ExecCallback, root cid.Cid, epoch abi.ChainEpoch, ts *types.TipSet) (cid.Cid, error) {
+	tree, err := sm.StateTree(root)
+	if err != nil {
+		return cid.Undef, xerrors.Errorf("getting state tree: %w", err)
+	}
+	policy.AddSupportedProofTypes(
+		abi.RegisteredSealProof_StackedDrg8GiBV1,
+	)
+	build.BlockGasLimit = build.BlockGasLimit * 4
+	build.BlockGasTarget = build.BlockGasTarget * 4
 	return tree.Flush(ctx)
 }
 

@@ -1,4 +1,4 @@
-// +build debug 2k
+// +build debug 8g
 
 package build
 
@@ -31,8 +31,8 @@ var DrandSchedule = map[abi.ChainEpoch]DrandEnum{
 }
 
 func init() {
-	policy.SetSupportedProofTypes(abi.RegisteredSealProof_StackedDrg2KiBV1)
-	policy.SetConsensusMinerMinPower(abi.NewStoragePower(2048))
+	policy.SetSupportedProofTypes(abi.RegisteredSealProof_StackedDrg8GiBV1)
+	policy.SetConsensusMinerMinPower(abi.NewStoragePower(8 << 30))
 	policy.SetMinVerifiedDealSize(abi.NewStoragePower(256))
 
 	if os.Getenv("LOTUS_DISABLE_V2_ACTOR_MIGRATION") == "1" {
@@ -40,7 +40,7 @@ func init() {
 		UpgradeLiftoffHeight = 11
 	}
 
-	BuildType |= Build2k
+	BuildType |= Build8g
 }
 
 const BlockDelaySecs = uint64(4)
