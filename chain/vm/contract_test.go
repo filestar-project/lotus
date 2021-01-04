@@ -11,7 +11,6 @@ import (
 	"github.com/filecoin-project/lotus/chain/actors"
 	"github.com/filecoin-project/lotus/chain/gen"
 	"github.com/filecoin-project/lotus/chain/types"
-	"github.com/filecoin-project/lotus/chain/wallet"
 	c "github.com/filecoin-project/lotus/conformance"
 	"github.com/filecoin-project/test-vectors/schema"
 	"github.com/filestar-project/evm-adapter/tests"
@@ -57,25 +56,25 @@ func TestHelloWorldContract(t *testing.T) {
 	code, err := hex.DecodeString(tests.HelloWorldContractCode)
 	r.NoError(t, err)
 
-	enc, err := actors.SerializeParams(&account2.ContractParams{Code: code})
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	key, err := wallet.GenerateKey(types.KTSecp256k1)
-	if err != nil {
-		t.Fatal(err)
-	}
-	toAddress := key.Address
-
+	fromAddress := cg.Banker()
 	sm := cg.StateManager()
-	act, err := sm.LoadActor(ctx, cg.Banker(), ts.TipSet.TipSet())
+	act, err := sm.LoadActor(ctx, fromAddress, ts.TipSet.TipSet())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	toAddress, salt, err := account2.PrecomputeContractAddress(fromAddress, code)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	enc, err := actors.SerializeParams(&account2.ContractParams{Code: code, Salt: salt})
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	msg := &types.Message{
-		From:       cg.Banker(),
+		From:       fromAddress,
 		To:         toAddress,
 		Method:     builtin.MethodsAccount.CreateContract,
 		Params:     enc,

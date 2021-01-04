@@ -11,7 +11,6 @@ import (
 	"github.com/filecoin-project/lotus/api"
 	"github.com/filecoin-project/lotus/chain/actors"
 	types "github.com/filecoin-project/lotus/chain/types"
-	"github.com/filecoin-project/lotus/chain/wallet"
 	"github.com/filecoin-project/specs-actors/v2/actors/builtin"
 	"github.com/filecoin-project/specs-actors/v2/actors/builtin/account"
 	cid "github.com/ipfs/go-cid"
@@ -40,6 +39,7 @@ type contractCmdParams struct {
 	gasFeeCap  types.BigInt
 	gasLimit   int64
 	nonce      uint64
+	salt       []byte
 }
 
 const (
@@ -96,6 +96,11 @@ func newContractCmdParams(cctx *cli.Context, cmd int) (*contractCmdParams, error
 		indexCode = 2
 	}
 
+	code, err := hex.DecodeString(cctx.Args().Get(indexCode))
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode contract code as hex param: %w", err)
+	}
+
 	var toAddr address.Address
 	if indexAddr != -1 {
 		a, err := address.NewFromString(cctx.Args().Get(indexAddr))
@@ -107,16 +112,10 @@ func newContractCmdParams(cctx *cli.Context, cmd int) (*contractCmdParams, error
 		}
 		toAddr = a
 	} else {
-		key, err := wallet.GenerateKey(types.KTSecp256k1)
+		toAddr, p.salt, err = account.PrecomputeContractAddress(fromAddr, code)
 		if err != nil {
 			return nil, err
 		}
-		toAddr = key.Address
-	}
-
-	code, err := hex.DecodeString(cctx.Args().Get(indexCode))
-	if err != nil {
-		return nil, fmt.Errorf("failed to decode contract code as hex param: %w", err)
 	}
 
 	p.api = api
@@ -188,7 +187,7 @@ var contractCreate = &cli.Command{
 		}
 		defer p.closer()
 
-		params, err := actors.SerializeParams(&account.ContractParams{Code: p.code})
+		params, err := actors.SerializeParams(&account.ContractParams{Code: p.code, Salt: p.salt})
 		if err != nil {
 			return xerrors.Errorf("failed to serialize contract create params: %w", err)
 		}

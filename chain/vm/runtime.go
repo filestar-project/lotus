@@ -80,6 +80,10 @@ type Runtime struct {
 	lastGasCharge     *types.GasTrace
 }
 
+func (rt *Runtime) Origin() address.Address {
+	return rt.origin
+}
+
 func (rt *Runtime) NetworkVersion() network.Version {
 	return rt.vm.GetNtwkVersion(rt.ctx, rt.CurrEpoch())
 }
