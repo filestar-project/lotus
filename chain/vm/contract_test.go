@@ -1,6 +1,7 @@
 package vm_test
 
 import (
+	"os"
 	"bytes"
 	"context"
 	"encoding/hex"
@@ -11,6 +12,8 @@ import (
 	"github.com/filecoin-project/lotus/chain/actors"
 	"github.com/filecoin-project/lotus/chain/gen"
 	"github.com/filecoin-project/lotus/chain/types"
+	"github.com/filecoin-project/lotus/build"
+	"github.com/filecoin-project/lotus/chain/actors/policy"
 	c "github.com/filecoin-project/lotus/conformance"
 	"github.com/filecoin-project/test-vectors/schema"
 	"github.com/filestar-project/evm-adapter/tests"
@@ -23,6 +26,18 @@ import (
 )
 
 var log = logging.Logger("test")
+
+// use init() from other chain/vm tests
+func init() {
+	build.InsecurePoStValidation = true
+	err := os.Setenv("TRUST_PARAMS", "1")
+	if err != nil {
+		panic(err)
+	}
+	policy.SetSupportedProofTypes(abi.RegisteredSealProof_StackedDrg2KiBV1)
+	policy.SetConsensusMinerMinPower(abi.NewStoragePower(2048))
+	policy.SetMinVerifiedDealSize(abi.NewStoragePower(256))
+}
 
 func TestHelloWorldContract(t *testing.T) {
 	logging.SetAllLoggers(logging.LevelDebug)
@@ -47,6 +62,7 @@ func TestHelloWorldContract(t *testing.T) {
 	}
 
 	ts, err := cg.NextTipSet()
+
 	if err != nil {
 		t.Fatal(err)
 	}

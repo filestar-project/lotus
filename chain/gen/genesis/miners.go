@@ -262,7 +262,7 @@ func SetupStorageMiners(ctx context.Context, cs *store.ChainStore, sroot cid.Cid
 
 				   Or may be power actor state is updated a bit later in parallel operations,
 				   anyway later check for Power actor overall state.power crashes many tests
-				   and this is a quick-fix for now.
+				   and this is a quick-fix for now.*/
 
 					// we've added fake power for this sector above, remove it now
 					err = vm.MutateState(ctx, power.Address, func(cst cbor.IpldStore, st *power0.State) error {
@@ -274,7 +274,7 @@ func SetupStorageMiners(ctx context.Context, cs *store.ChainStore, sroot cid.Cid
 						return cid.Undef, xerrors.Errorf("removing fake power: %w", err)
 					}
 
-				*/
+				
 
 				epochReward, err := currentEpochBlockReward(ctx, vm, minerInfos[i].maddr)
 				if err != nil {
