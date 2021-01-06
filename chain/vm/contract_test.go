@@ -167,4 +167,5 @@ func TestHelloWorldContract(t *testing.T) {
 	r.Contains(t, stringReturn, tests.HelloWorldFuncReturn)
 
 	log.Infof("return string: %v\n", stringReturn)
+	log.Infof("return value: %x\n", result.Value)
 }
