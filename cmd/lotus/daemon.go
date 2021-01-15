@@ -44,6 +44,7 @@ import (
 	"github.com/filecoin-project/lotus/node/modules/dtypes"
 	"github.com/filecoin-project/lotus/node/modules/testing"
 	"github.com/filecoin-project/lotus/node/repo"
+	"github.com/filecoin-project/specs-actors/v2/actors/builtin/account"
 )
 
 const (
@@ -190,6 +191,7 @@ var DaemonCmd = &cli.Command{
 		if err != nil {
 			return xerrors.Errorf("opening fs repo: %w", err)
 		}
+		account.PathToRepo = cctx.String("repo")
 
 		if cctx.String("config") != "" {
 			r.SetConfigPath(cctx.String("config"))

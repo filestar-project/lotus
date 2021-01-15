@@ -74,6 +74,10 @@ func newContractCmdParams(cctx *cli.Context, cmd int) (*contractCmdParams, error
 		fromAddr = addr
 	}
 
+	if fromAddr.Protocol() != address.SECP256K1 {
+		return nil, fmt.Errorf("only secp256k1 addresses allowed with contracts")
+	}
+
 	gp, err := types.BigFromString(cctx.String("gas-premium"))
 	if err != nil {
 		return nil, err
@@ -141,7 +145,7 @@ func newContractCmdParams(cctx *cli.Context, cmd int) (*contractCmdParams, error
 var contractDefaultFlags = []cli.Flag{
 	&cli.StringFlag{
 		Name:  "from",
-		Usage: "optionally specify the account to send funds from",
+		Usage: "optionally specify the account to send funds from (only secp256k1 allowed)",
 	},
 	&cli.StringFlag{
 		Name:  "gas-premium",

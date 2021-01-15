@@ -163,6 +163,8 @@ func TestHelloWorldContract(t *testing.T) {
 	err = result.UnmarshalCBOR(bytes.NewReader(ret.MessageReceipt.Return))
 	r.NoError(t, err)
 
+	log.Infof("execRes: %+v\n\n", result)
+
 	stringReturn := string(result.Value)
 	r.Contains(t, stringReturn, tests.HelloWorldFuncReturn)
 

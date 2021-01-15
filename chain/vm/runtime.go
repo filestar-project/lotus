@@ -71,6 +71,9 @@ type Runtime struct {
 	origin      address.Address
 	originNonce uint64
 
+	// origin reciever address
+	originReciever address.Address
+
 	executionTrace    types.ExecutionTrace
 	depth             uint64
 	numActorsCreated  uint64
@@ -82,6 +85,10 @@ type Runtime struct {
 
 func (rt *Runtime) Origin() address.Address {
 	return rt.origin
+}
+
+func (rt *Runtime) OriginReciever() address.Address {
+	return rt.originReciever
 }
 
 func (rt *Runtime) NetworkVersion() network.Version {

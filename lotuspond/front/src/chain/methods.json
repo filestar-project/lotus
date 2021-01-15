@@ -103,7 +103,9 @@
   "fil/2/account": [
     "Send",
     "Constructor",
-    "PubkeyAddress"
+    "PubkeyAddress",
+    "CreateContract",
+    "CallContract"
   ],
   "fil/2/cron": [
     "Send",
