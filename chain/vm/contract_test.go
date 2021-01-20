@@ -84,7 +84,7 @@ func TestHelloWorldContract(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	enc, err := actors.SerializeParams(&account2.ContractParams{Code: code, Salt: salt})
+	enc, err := actors.SerializeParams(&account2.ContractParams{Code: code, Salt: salt, Value: big.NewInt(0)})
 	if err != nil {
 		t.Fatal(err)
 	}

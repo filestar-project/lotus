@@ -27,7 +27,6 @@ require (
 	github.com/filecoin-project/go-amt-ipld/v2 v2.1.1-0.20201006184820-924ee87a1349 // indirect
 	github.com/filecoin-project/go-bitfield v0.2.1
 	github.com/filecoin-project/go-cbor-util v0.0.0-20191219014500-08c40a1e63a2
-	github.com/filecoin-project/go-crypto v0.0.0-20191218222705-effae4ea9f03
 	github.com/filecoin-project/go-data-transfer v1.0.0
 	github.com/filecoin-project/go-fil-commcid v0.0.0-20200716160307-8f644712406f
 	github.com/filecoin-project/go-fil-markets v1.0.0
@@ -154,7 +153,9 @@ replace github.com/filecoin-project/test-vectors => ./extern/test-vectors
 replace github.com/supranational/blst => ./extern/fil-blst/blst
 
 replace github.com/filecoin-project/fil-blst => ./extern/fil-blst
+
 replace github.com/filecoin-project/go-state-types => ./extern/go-state-types
 
 replace github.com/filecoin-project/specs-actors/v2 => ./extern/specs-actors
+
 replace github.com/filestar-project/evm-adapter => ./extern/evm-adapter

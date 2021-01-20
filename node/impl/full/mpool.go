@@ -14,6 +14,7 @@ import (
 	"github.com/filecoin-project/lotus/chain/messagesigner"
 	"github.com/filecoin-project/lotus/chain/types"
 	"github.com/filecoin-project/lotus/node/modules/dtypes"
+	builtin2 "github.com/filecoin-project/specs-actors/v2/actors/builtin"
 )
 
 type MpoolModuleAPI interface {
@@ -151,8 +152,15 @@ func (a *MpoolAPI) MpoolPushMessage(ctx context.Context, msg *types.Message, spe
 	if msg.Nonce != 0 {
 		return nil, xerrors.Errorf("MpoolPushMessage expects message nonce to be 0, was %d", msg.Nonce)
 	}
-
+	oldMethod := msg.Method
+	if oldMethod == builtin2.MethodsAccount.CreateContract {
+		msg.Method = builtin2.MethodsAccount.CreateContractWithoutCommit
+	}
+	if oldMethod == builtin2.MethodsAccount.CallContract {
+		msg.Method = builtin2.MethodsAccount.CallContractWithoutCommit
+	}
 	msg, err = a.GasAPI.GasEstimateMessageGas(ctx, msg, spec, types.EmptyTSK)
+	msg.Method = oldMethod
 	if err != nil {
 		return nil, xerrors.Errorf("GasEstimateMessageGas error: %w", err)
 	}

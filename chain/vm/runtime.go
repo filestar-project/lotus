@@ -21,6 +21,8 @@ import (
 	"go.opencensus.io/trace"
 	"golang.org/x/xerrors"
 
+	"github.com/filecoin-project/go-state-types/big"
+
 	"github.com/filecoin-project/lotus/build"
 	"github.com/filecoin-project/lotus/chain/actors/aerrors"
 	"github.com/filecoin-project/lotus/chain/state"
@@ -89,6 +91,41 @@ func (rt *Runtime) Origin() address.Address {
 
 func (rt *Runtime) OriginReciever() address.Address {
 	return rt.originReciever
+}
+
+// GetActorBalance get balance by address
+func (rt *Runtime) GetActorBalance(a address.Address) big.Int {
+	b, err := rt.GetBalance(a)
+	if err != nil {
+		rt.Abortf(err.RetCode(), "get current balance: %v", err)
+	}
+	return b
+}
+
+// AddActorBalance add balance to actor by address
+func (rt *Runtime) AddActorBalance(a address.Address, value big.Int) {
+	err := rt.state.MutateActor(a, func(act *types.Actor) error {
+		act.Balance = types.BigAdd(act.Balance, value)
+		return nil
+	})
+	if err != nil {
+		rt.Abortf(exitcode.ErrIllegalState, "AddActorBalance balance: %v", err)
+	}
+}
+
+// SubActorBalance sub balance to actor by address
+func (rt *Runtime) SubActorBalance(a address.Address, value big.Int) {
+	err := rt.state.MutateActor(a, func(act *types.Actor) error {
+		if act.Balance.LessThan(value) {
+			return fmt.Errorf("not enough funds")
+		}
+	
+		act.Balance = types.BigSub(act.Balance, value)
+		return nil
+	})
+	if err != nil {
+		rt.Abortf(exitcode.ErrIllegalState, "SubActorBalance balance: %v", err)
+	}
 }
 
 func (rt *Runtime) NetworkVersion() network.Version {

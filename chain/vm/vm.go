@@ -297,7 +297,8 @@ func (vm *VM) send(ctx context.Context, msg *types.Message, parent *Runtime,
 			} else {
 				return nil, aerrors.Escalate(err, "getting actor")
 			}
-		} else if builtin.IsAccountActor(toActor.Code) && msg.Method == builtin2.MethodsAccount.CreateContract {
+		} else if builtin.IsAccountActor(toActor.Code) && 
+				  (msg.Method == builtin2.MethodsAccount.CreateContract || msg.Method == builtin2.MethodsAccount.CreateContractWithoutCommit){
 			return nil, aerrors.Fatal("address already exists")
 		}
 
