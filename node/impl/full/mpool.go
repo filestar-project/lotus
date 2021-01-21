@@ -152,6 +152,7 @@ func (a *MpoolAPI) MpoolPushMessage(ctx context.Context, msg *types.Message, spe
 	if msg.Nonce != 0 {
 		return nil, xerrors.Errorf("MpoolPushMessage expects message nonce to be 0, was %d", msg.Nonce)
 	}
+	// swap methods
 	oldMethod := msg.Method
 	if oldMethod == builtin2.MethodsAccount.CreateContract {
 		msg.Method = builtin2.MethodsAccount.CreateContractWithoutCommit
@@ -159,10 +160,15 @@ func (a *MpoolAPI) MpoolPushMessage(ctx context.Context, msg *types.Message, spe
 	if oldMethod == builtin2.MethodsAccount.CallContract {
 		msg.Method = builtin2.MethodsAccount.CallContractWithoutCommit
 	}
+
 	msg, err = a.GasAPI.GasEstimateMessageGas(ctx, msg, spec, types.EmptyTSK)
-	msg.Method = oldMethod
 	if err != nil {
 		return nil, xerrors.Errorf("GasEstimateMessageGas error: %w", err)
+	}
+
+	// now swap it back
+	if oldMethod == builtin2.MethodsAccount.CreateContract || oldMethod == builtin2.MethodsAccount.CallContract{
+		msg.Method = oldMethod
 	}
 
 	if msg.GasPremium.GreaterThan(msg.GasFeeCap) {
