@@ -257,22 +257,15 @@ func SetupStorageMiners(ctx context.Context, cs *store.ChainStore, sroot cid.Cid
 
 				sectorWeight := miner0.QAPowerForWeight(m.SectorSize, minerInfos[i].presealExp, dweight.DealWeight, dweight.VerifiedDealWeight)
 
-				/* This crashes the check logic below, seems during committing sectors they are not
-				   added to Power actor state and doubling does not happen for these values.
-
-				   Or may be power actor state is updated a bit later in parallel operations,
-				   anyway later check for Power actor overall state.power crashes many tests
-				   and this is a quick-fix for now.*/
-
-					// we've added fake power for this sector above, remove it now
-					err = vm.MutateState(ctx, power.Address, func(cst cbor.IpldStore, st *power0.State) error {
-						st.TotalQualityAdjPower = types.BigSub(st.TotalQualityAdjPower, sectorWeight) //nolint:scopelint
-						st.TotalRawBytePower = types.BigSub(st.TotalRawBytePower, types.NewInt(uint64(m.SectorSize)))
-						return nil
-					})
-					if err != nil {
-						return cid.Undef, xerrors.Errorf("removing fake power: %w", err)
-					}
+				// we've added fake power for this sector above, remove it now
+				err = vm.MutateState(ctx, power.Address, func(cst cbor.IpldStore, st *power0.State) error {
+					st.TotalQualityAdjPower = types.BigSub(st.TotalQualityAdjPower, sectorWeight) //nolint:scopelint
+					st.TotalRawBytePower = types.BigSub(st.TotalRawBytePower, types.NewInt(uint64(m.SectorSize)))
+					return nil
+				})
+				if err != nil {
+					return cid.Undef, xerrors.Errorf("removing fake power: %w", err)
+				}
 
 				
 
