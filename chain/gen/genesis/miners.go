@@ -267,8 +267,6 @@ func SetupStorageMiners(ctx context.Context, cs *store.ChainStore, sroot cid.Cid
 					return cid.Undef, xerrors.Errorf("removing fake power: %w", err)
 				}
 
-				
-
 				epochReward, err := currentEpochBlockReward(ctx, vm, minerInfos[i].maddr)
 				if err != nil {
 					return cid.Undef, xerrors.Errorf("getting current epoch reward: %w", err)
