@@ -63,6 +63,8 @@ type SealingConfig struct {
 	MaxSealingSectorsForDeals uint64
 
 	WaitDealsDelay Duration
+
+	AlwaysKeepUnsealedCopy bool
 }
 
 type MinerFeeConfig struct {
