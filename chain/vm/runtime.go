@@ -606,8 +606,12 @@ func (rt *Runtime) chargeGasSafe(gas GasCharge) aerrors.ActorError {
 	return rt.chargeGasInternal(gas, 1)
 }
 
-func (rt *Runtime) GasLimit() int64 {
-	return rt.gasAvailable - rt.gasUsed
+func (rt *Runtime) GasLimit() uint64 {
+	if rt.gasAvailable > rt.gasUsed {
+		return uint64(rt.gasAvailable - rt.gasUsed)
+	}
+	rt.Abortf(exitcode.ErrIllegalState, "GasLimit - try to spend extraGas:\n Available - %v\nUsed - %v", rt.gasAvailable, rt.gasUsed)
+	return 0
 }
 
 func (rt *Runtime) Pricelist() Pricelist {
