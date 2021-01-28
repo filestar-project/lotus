@@ -192,7 +192,7 @@ var contractCreate = &cli.Command{
 		}
 		defer p.closer()
 
-		params, err := actors.SerializeParams(&contract.ContractParams{Code: p.code, Salt: p.salt, Value: p.amount})
+		params, err := actors.SerializeParams(&contract.ContractParams{Code: p.code, Value: p.amount})
 		if err != nil {
 			return xerrors.Errorf("failed to serialize contract create params: %w", err)
 		}
