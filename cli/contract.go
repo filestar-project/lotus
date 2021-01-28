@@ -13,7 +13,7 @@ import (
 	"github.com/filecoin-project/lotus/chain/actors"
 	types "github.com/filecoin-project/lotus/chain/types"
 	"github.com/filecoin-project/specs-actors/v2/actors/builtin"
-	"github.com/filecoin-project/specs-actors/v2/actors/builtin/account"
+	"github.com/filecoin-project/specs-actors/v2/actors/builtin/contract"
 	cid "github.com/ipfs/go-cid"
 	"github.com/urfave/cli/v2"
 	"golang.org/x/xerrors"
@@ -117,7 +117,7 @@ func newContractCmdParams(cctx *cli.Context, cmd int) (*contractCmdParams, error
 		}
 		toAddr = a
 	} else {
-		toAddr, p.salt, err = account.PrecomputeContractAddress(fromAddr, code)
+		toAddr, p.salt, err = contract.PrecomputeContractAddress(fromAddr, code)
 		if err != nil {
 			return nil, err
 		}
@@ -192,7 +192,7 @@ var contractCreate = &cli.Command{
 		}
 		defer p.closer()
 
-		params, err := actors.SerializeParams(&account.ContractParams{Code: p.code, Salt: p.salt, Value: p.amount})
+		params, err := actors.SerializeParams(&contract.ContractParams{Code: p.code, Salt: p.salt, Value: p.amount})
 		if err != nil {
 			return xerrors.Errorf("failed to serialize contract create params: %w", err)
 		}
@@ -262,7 +262,7 @@ var contractCall = &cli.Command{
 		}
 		defer p.closer()
 
-		params, err := actors.SerializeParams(&account.ContractParams{Code: p.code, Value: p.amount})
+		params, err := actors.SerializeParams(&contract.ContractParams{Code: p.code, Value: p.amount})
 		if err != nil {
 			return xerrors.Errorf("failed to serialize contract call params: %w", err)
 		}

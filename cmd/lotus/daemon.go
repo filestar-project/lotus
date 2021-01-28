@@ -16,6 +16,7 @@ import (
 	"strings"
 
 	paramfetch "github.com/filecoin-project/go-paramfetch"
+	"github.com/filecoin-project/specs-actors/v2/actors/builtin/contract"
 	"github.com/mitchellh/go-homedir"
 	"github.com/multiformats/go-multiaddr"
 	"github.com/urfave/cli/v2"
@@ -44,7 +45,6 @@ import (
 	"github.com/filecoin-project/lotus/node/modules/dtypes"
 	"github.com/filecoin-project/lotus/node/modules/testing"
 	"github.com/filecoin-project/lotus/node/repo"
-	"github.com/filecoin-project/specs-actors/v2/actors/builtin/account"
 )
 
 const (
@@ -191,7 +191,7 @@ var DaemonCmd = &cli.Command{
 		if err != nil {
 			return xerrors.Errorf("opening fs repo: %w", err)
 		}
-		account.PathToRepo = cctx.String("repo")
+		contract.PathToRepo = cctx.String("repo")
 
 		if cctx.String("config") != "" {
 			r.SetConfigPath(cctx.String("config"))
