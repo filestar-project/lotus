@@ -15,6 +15,7 @@ import (
 	"github.com/filecoin-project/go-state-types/network"
 	rtt "github.com/filecoin-project/go-state-types/rt"
 	rt0 "github.com/filecoin-project/specs-actors/actors/runtime"
+	"github.com/filecoin-project/specs-actors/v2/actors/builtin"
 	rt2 "github.com/filecoin-project/specs-actors/v2/actors/runtime"
 	"github.com/ipfs/go-cid"
 	ipldcbor "github.com/ipfs/go-ipld-cbor"
@@ -126,6 +127,35 @@ func (rt *Runtime) SubActorBalance(a address.Address, value big.Int) {
 	if err != nil {
 		rt.Abortf(exitcode.ErrIllegalState, "SubActorBalance balance: %v", err)
 	}
+}
+
+// DeleteContractActor implements runtime.DeleteContractActor
+func (rt *Runtime) DeleteContractActor(a address.Address) {
+	rt.chargeGas(rt.Pricelist().OnDeleteActor())
+	isContractActor := func (rt *Runtime, addr address.Address) {
+		act, err := rt.state.GetActor(a)
+		if err != nil {
+			if xerrors.Is(err, types.ErrActorNotFound) {
+				rt.Abortf(exitcode.SysErrorIllegalActor, "failed to load actor in delete contract actor: %s", err)
+			}
+			panic(aerrors.Fatalf("failed to get actor: %s", err))
+		}
+		if act.Code != builtin.ContractActorCodeID {
+			rt.Abortf(exitcode.SysErrorIllegalActor, "failed to load actor in delete contract actor: address %x is not a contract actor", a)
+		}
+	}
+
+	// first check that it is a contract actor
+	isContractActor(rt, a)
+
+	// check that it reciever of Runtime is a contract actor
+	isContractActor(rt, rt.OriginReciever())
+
+	// Delete the executing actor
+	if err := rt.state.DeleteActor(a); err != nil {
+		panic(aerrors.Fatalf("failed to delete actor: %s", err))
+	}
+	_ = rt.chargeGasSafe(gasOnActorExec)
 }
 
 func (rt *Runtime) NetworkVersion() network.Version {
