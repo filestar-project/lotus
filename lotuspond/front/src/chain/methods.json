@@ -103,11 +103,12 @@
   "fil/2/account": [
     "Send",
     "Constructor",
-    "PubkeyAddress",
-    "CreateContract",
-    "CreateContractWithoutCommit",
-    "CallContract",
-    "CallContractWithoutCommit"
+    "PubkeyAddress"
+  ],
+  "fil/2/contract": [
+    "Send",
+    "Constructor",
+    "CallContract"
   ],
   "fil/2/cron": [
     "Send",

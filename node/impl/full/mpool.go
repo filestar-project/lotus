@@ -11,6 +11,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/filecoin-project/lotus/api"
+	"github.com/filecoin-project/lotus/chain/actors"
 	"github.com/filecoin-project/lotus/chain/messagepool"
 	"github.com/filecoin-project/lotus/chain/messagesigner"
 	"github.com/filecoin-project/lotus/chain/types"
@@ -158,7 +159,6 @@ func (a *MpoolAPI) MpoolPushMessage(ctx context.Context, msg *types.Message, spe
 	}
 
 	// The goal of this code is to prevent double commiting to EVM contract database
-	lastMethod := msg.Method
 	lastParams := msg.Params
 	isChanged := false
 	// check that it is init actor message
@@ -171,16 +171,35 @@ func (a *MpoolAPI) MpoolPushMessage(ctx context.Context, msg *types.Message, spe
 				// deserialize ContractParms
 				var contractParams contract.ContractParams
 				if err := contractParams.UnmarshalCBOR(bytes.NewReader(execParams.ConstructorParams)); err == nil {
-					contractParams.CommitStatus = false;
-					isChanged = true;
+					contractParams.CommitStatus = false
+					contractBuf, err := actors.SerializeParams(&contractParams)
+					if err != nil {
+						return nil, xerrors.Errorf("Serialize contractParams error: %w", err)
+					}
+					execParams.ConstructorParams = contractBuf
+					execBuf, err := actors.SerializeParams(&execParams)
+					if err != nil {
+						return nil, xerrors.Errorf("Serialize execParams error: %w", err)
+					}
+					msg.Params = execBuf
+					isChanged = true
 				}
 			}
 		}
 
 	}
-	if lastMethod == builtin2.MethodsAccount.CallContract {
-		msg.Method = builtin2.MethodsAccount.CallContractWithoutCommit
-		isChanged = true;
+	if msg.Method == builtin2.MethodsContract.CallContract {
+		var contractParams contract.ContractParams
+		if err := contractParams.UnmarshalCBOR(bytes.NewReader(msg.Params)); err == nil {
+			contractParams.CommitStatus = false
+			isChanged = true
+			contractBuf, err := actors.SerializeParams(&contractParams)
+			if err != nil {
+				return nil, xerrors.Errorf("Serialize contractParams error: %w", err)
+			}
+			msg.Params = contractBuf
+			isChanged = true
+		}
 	}
 
 	msg, err = a.GasAPI.GasEstimateMessageGas(ctx, msg, spec, types.EmptyTSK)
@@ -190,11 +209,7 @@ func (a *MpoolAPI) MpoolPushMessage(ctx context.Context, msg *types.Message, spe
 
 	// roll all back
 	if isChanged {
-		if lastMethod == builtin2.MethodsAccount.CallContract {
-			msg.Method = lastMethod
-		} else {
-			msg.Params = lastParams
-		}
+		msg.Params = lastParams
 	}
 
 	if msg.GasPremium.GreaterThan(msg.GasFeeCap) {

@@ -23,9 +23,9 @@ require (
 	github.com/elastic/go-sysinfo v1.3.0
 	github.com/fatih/color v1.9.0
 	github.com/filecoin-project/filecoin-ffi v0.30.4-0.20200716204036-cddc56607e1d
-	github.com/filecoin-project/go-address v0.0.4
+	github.com/filecoin-project/go-address v0.0.5-0.20201103152444-f2023ef3f5bb
 	github.com/filecoin-project/go-amt-ipld/v2 v2.1.1-0.20201006184820-924ee87a1349 // indirect
-	github.com/filecoin-project/go-bitfield v0.2.1
+	github.com/filecoin-project/go-bitfield v0.2.3-0.20201110211213-fe2c1862e816
 	github.com/filecoin-project/go-cbor-util v0.0.0-20191219014500-08c40a1e63a2
 	github.com/filecoin-project/go-data-transfer v1.0.0
 	github.com/filecoin-project/go-fil-commcid v0.0.0-20200716160307-8f644712406f
@@ -34,11 +34,11 @@ require (
 	github.com/filecoin-project/go-multistore v0.0.3
 	github.com/filecoin-project/go-padreader v0.0.0-20200903213702-ed5fae088b20
 	github.com/filecoin-project/go-paramfetch v0.0.2-0.20200701152213-3e0f0afdc261
-	github.com/filecoin-project/go-state-types v0.0.0-20201013222834-41ea465f274f
+	github.com/filecoin-project/go-state-types v0.0.0-20201102161440-c8033295a1fc
 	github.com/filecoin-project/go-statemachine v0.0.0-20200925024713-05bd7c71fbfe
 	github.com/filecoin-project/go-statestore v0.1.0
 	github.com/filecoin-project/go-storedcounter v0.0.0-20200421200003-1c99c62e8a5b
-	github.com/filecoin-project/specs-actors v0.9.12
+	github.com/filecoin-project/specs-actors v0.9.13
 	github.com/filecoin-project/specs-actors/v2 v2.2.0
 	github.com/filecoin-project/specs-storage v0.1.1-0.20200907031224-ed2e5cd13796
 	github.com/filecoin-project/test-vectors/schema v0.0.5
@@ -76,7 +76,7 @@ require (
 	github.com/ipfs/go-ipfs-files v0.0.8
 	github.com/ipfs/go-ipfs-http-client v0.0.5
 	github.com/ipfs/go-ipfs-routing v0.1.0
-	github.com/ipfs/go-ipld-cbor v0.0.5-0.20200428170625-a0bd04d3cbdf
+	github.com/ipfs/go-ipld-cbor v0.0.5
 	github.com/ipfs/go-ipld-format v0.2.0
 	github.com/ipfs/go-log v1.0.4
 	github.com/ipfs/go-log/v2 v2.1.2-0.20200626104915-0016c0b4b3e4
@@ -131,10 +131,10 @@ require (
 	go.opencensus.io v0.22.4
 	go.uber.org/dig v1.10.0 // indirect
 	go.uber.org/fx v1.9.0
-	go.uber.org/multierr v1.5.0
-	go.uber.org/zap v1.15.0
-	golang.org/x/sync v0.0.0-20200625203802-6e8e738ad208
-	golang.org/x/sys v0.0.0-20200926100807-9d91bd62050c
+	go.uber.org/multierr v1.6.0
+	go.uber.org/zap v1.16.0
+	golang.org/x/sync v0.0.0-20201020160332-67f06af15bc9
+	golang.org/x/sys v0.0.0-20200930185726-fdedc70b468f
 	golang.org/x/time v0.0.0-20191024005414-555d28b269f0
 	golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1
 	gopkg.in/cheggaaa/pb.v1 v1.0.28

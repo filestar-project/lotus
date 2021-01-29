@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/filecoin-project/lotus/chain/actors/builtin"
-	builtin2 "github.com/filecoin-project/specs-actors/v2/actors/builtin"
 
 	block "github.com/ipfs/go-block-format"
 	cid "github.com/ipfs/go-cid"

@@ -16,6 +16,7 @@ import (
 	rtt "github.com/filecoin-project/go-state-types/rt"
 	rt0 "github.com/filecoin-project/specs-actors/actors/runtime"
 	"github.com/filecoin-project/specs-actors/v2/actors/builtin"
+	"github.com/filecoin-project/specs-actors/v2/actors/builtin/contract"
 	rt2 "github.com/filecoin-project/specs-actors/v2/actors/runtime"
 	"github.com/ipfs/go-cid"
 	ipldcbor "github.com/ipfs/go-ipld-cbor"
@@ -120,7 +121,7 @@ func (rt *Runtime) SubActorBalance(a address.Address, value big.Int) {
 		if act.Balance.LessThan(value) {
 			return fmt.Errorf("not enough funds")
 		}
-	
+
 		act.Balance = types.BigSub(act.Balance, value)
 		return nil
 	})
@@ -132,7 +133,7 @@ func (rt *Runtime) SubActorBalance(a address.Address, value big.Int) {
 // DeleteContractActor implements runtime.DeleteContractActor
 func (rt *Runtime) DeleteContractActor(a address.Address) {
 	rt.chargeGas(rt.Pricelist().OnDeleteActor())
-	isContractActor := func (rt *Runtime, addr address.Address) {
+	isContractActor := func(rt *Runtime, addr address.Address) {
 		act, err := rt.state.GetActor(a)
 		if err != nil {
 			if xerrors.Is(err, types.ErrActorNotFound) {
@@ -156,6 +157,23 @@ func (rt *Runtime) DeleteContractActor(a address.Address) {
 		panic(aerrors.Fatalf("failed to delete actor: %s", err))
 	}
 	_ = rt.chargeGasSafe(gasOnActorExec)
+}
+
+// NewContractActorAddress implements runtime.NewContractActorAddress
+func (rt *Runtime) NewContractActorAddress(code []byte) (address.Address, []byte) {
+	act, err := rt.state.GetActor(rt.Origin())
+	if err != nil {
+		rt.Abortf(exitcode.SysErrorIllegalActor, "failed to get actor for NewContractActorAddress: %s", err)
+	}
+	fakeSalt := make([]byte, 32)
+	binary.LittleEndian.PutUint64(fakeSalt, act.Nonce)
+
+	newAddress, err := contract.PrecomputeContractAddress(rt.Origin(), code, fakeSalt)
+
+	if err != nil {
+		rt.Abortf(exitcode.SysErrorIllegalActor, "failed to compute address for NewContractActorAddress: %s", err)
+	}
+	return newAddress, fakeSalt
 }
 
 func (rt *Runtime) NetworkVersion() network.Version {

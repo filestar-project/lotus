@@ -26,7 +26,8 @@ import (
 
 	verifreg0 "github.com/filecoin-project/specs-actors/actors/builtin/verifreg"
 	"github.com/filecoin-project/specs-actors/v2/actors/builtin"
-	account2 "github.com/filecoin-project/specs-actors/v2/actors/builtin/account"
+	contract "github.com/filecoin-project/specs-actors/v2/actors/builtin/contract"
+	init0 "github.com/filecoin-project/specs-actors/v2/actors/builtin/init"
 	"github.com/ipfs/go-cid"
 	logging "github.com/ipfs/go-log"
 )
@@ -111,15 +112,15 @@ func (suite *EvmContractSuite) createContract(params *CreateContractParams, chai
 	sm := chainParams.cg.StateManager()
 	act, err := sm.LoadActor(chainParams.ctx, fromAddress, chainParams.tipset.TipSet.TipSet())
 	r.NoError(t, err)
-	toAddress, salt, err := account2.PrecomputeContractAddress(fromAddress, code)
+	contractEnc, err := actors.SerializeParams(&contract.ContractParams{Code: code, Value: big.NewInt(0), CommitStatus: true})
 	r.NoError(t, err)
-	enc, err := actors.SerializeParams(&account2.ContractParams{Code: code, Salt: salt, Value: big.NewInt(0)})
+	enc, err := actors.SerializeParams(&init0.ExecParams{CodeCID: builtin.ContractActorCodeID, ConstructorParams: contractEnc})
 	r.NoError(t, err)
 	//Build message to create contract
 	msg := &types.Message{
 		From:       fromAddress,
-		To:         toAddress,
-		Method:     builtin.MethodsAccount.CreateContract,
+		To:         builtin.InitActorAddr,
+		Method:     builtin.MethodsInit.Exec,
 		Params:     enc,
 		GasLimit:   types.TestGasLimit,
 		Value:      types.NewInt(0),
@@ -135,32 +136,28 @@ func (suite *EvmContractSuite) createContract(params *CreateContractParams, chai
 		BaseFee:    c.DefaultBaseFee,
 		CircSupply: c.DefaultCirculatingSupply,
 	})
+	msg.Nonce++
 	chainParams.root = root
 	r.NoError(t, err)
 	r.NotNil(t, ret)
-	msg.Nonce++
-	// Try to create the same contract one more time
-	ret, _, err = chainParams.drive.ExecuteMessage(chainParams.cg.ChainStore().Blockstore(), c.ExecuteMessageParams{
-		Preroot:    root,
-		Epoch:      chainParams.baseEpoch + 1,
-		Message:    msg,
-		BaseFee:    c.DefaultBaseFee,
-		CircSupply: c.DefaultCirculatingSupply,
-	})
-	r.Error(t, err)
-	r.Nil(t, ret)
-	return CallArguments{msg: msg, toAddress: toAddress, fromAddress: fromAddress}
+	var result init0.ExecReturn
+	if ret.ActorErr == nil {
+		err = result.UnmarshalCBOR(bytes.NewReader(ret.MessageReceipt.Return))
+		r.NoError(t, err)
+	}
+	msg.To = result.RobustAddress
+	return CallArguments{msg: msg, toAddress: msg.To, fromAddress: fromAddress}
 }
 
 func (suite *EvmContractSuite) callContract(callParams *CallContractParams, chainParams *ChainParams) ([]byte, aerrors.ActorError) {
 	t := suite.T()
 	// Try to call contract
-	callParams.args.msg.Method = builtin.MethodsAccount.CallContract
+	callParams.args.msg.Method = builtin.MethodsContract.CallContract
 	//Build function signature
 	funcSig, err := hex.DecodeString(callParams.funcSign)
 	r.NoError(t, err)
 	//Add contract params
-	enc, err := actors.SerializeParams(&account2.ContractParams{Code: funcSig, Value: types.NewInt(callParams.msgValue)})
+	enc, err := actors.SerializeParams(&contract.ContractParams{Code: funcSig, Value: types.NewInt(callParams.msgValue), CommitStatus: true})
 	r.NoError(t, err)
 	callParams.args.msg.Params = enc
 	//Execute call contract with funcSig
@@ -178,7 +175,7 @@ func (suite *EvmContractSuite) callContract(callParams *CallContractParams, chai
 
 	//Get contract result
 	if ret.ActorErr == nil {
-		var result account2.ContractResult
+		var result contract.ContractResult
 		err = result.UnmarshalCBOR(bytes.NewReader(ret.MessageReceipt.Return))
 		r.NoError(t, err)
 		return result.Value, nil

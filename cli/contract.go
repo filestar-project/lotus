@@ -14,6 +14,7 @@ import (
 	types "github.com/filecoin-project/lotus/chain/types"
 	"github.com/filecoin-project/specs-actors/v2/actors/builtin"
 	"github.com/filecoin-project/specs-actors/v2/actors/builtin/contract"
+	init_ "github.com/filecoin-project/specs-actors/v2/actors/builtin/init"
 	cid "github.com/ipfs/go-cid"
 	"github.com/urfave/cli/v2"
 	"golang.org/x/xerrors"
@@ -116,11 +117,6 @@ func newContractCmdParams(cctx *cli.Context, cmd int) (*contractCmdParams, error
 			return nil, ShowHelp(cctx, fmt.Errorf("contract address must be specified"))
 		}
 		toAddr = a
-	} else {
-		toAddr, p.salt, err = contract.PrecomputeContractAddress(fromAddr, code)
-		if err != nil {
-			return nil, err
-		}
 	}
 
 	p.api = api
@@ -172,7 +168,6 @@ var contractDefaultFlags = []cli.Flag{
 
 type contractCreateInfo struct {
 	Cid     string
-	Address string
 }
 
 var contractCreate = &cli.Command{
@@ -187,14 +182,20 @@ var contractCreate = &cli.Command{
 		}
 
 		p, err := newContractCmdParams(cctx, contractCreateCommand)
+		p.to = builtin.InitActorAddr
 		if err != nil {
 			return err
 		}
 		defer p.closer()
 
-		params, err := actors.SerializeParams(&contract.ContractParams{Code: p.code, Value: p.amount})
+		contractParams, err := actors.SerializeParams(&contract.ContractParams{Code: p.code, Value: p.amount, CommitStatus: true})
 		if err != nil {
 			return xerrors.Errorf("failed to serialize contract create params: %w", err)
+		}
+
+		params, err := actors.SerializeParams(&init_.ExecParams{CodeCID: builtin.ContractActorCodeID, ConstructorParams: contractParams})
+		if err != nil {
+			return xerrors.Errorf("failed to serialize exec contract create params: %w", err)
 		}
 
 		msg := &types.Message{
@@ -204,7 +205,7 @@ var contractCreate = &cli.Command{
 			GasPremium: p.gasPremium,
 			GasFeeCap:  p.gasFeeCap,
 			GasLimit:   p.gasLimit,
-			Method:     builtin.MethodsAccount.CreateContract,
+			Method:     builtin.MethodsInit.Exec,
 			Params:     params,
 			Nonce:      0,
 		}
@@ -230,7 +231,7 @@ var contractCreate = &cli.Command{
 			cid = sm.Cid()
 		}
 
-		createInfo := &contractCreateInfo{Cid: cid.String(), Address: p.to.String()}
+		createInfo := &contractCreateInfo{Cid: cid.String()}
 		j, err := json.MarshalIndent(createInfo, "", "    ")
 		if err != nil {
 			return err
@@ -262,7 +263,7 @@ var contractCall = &cli.Command{
 		}
 		defer p.closer()
 
-		params, err := actors.SerializeParams(&contract.ContractParams{Code: p.code, Value: p.amount})
+		params, err := actors.SerializeParams(&contract.ContractParams{Code: p.code, Value: p.amount, CommitStatus: true})
 		if err != nil {
 			return xerrors.Errorf("failed to serialize contract call params: %w", err)
 		}
@@ -274,7 +275,7 @@ var contractCall = &cli.Command{
 			GasPremium: p.gasPremium,
 			GasFeeCap:  p.gasFeeCap,
 			GasLimit:   p.gasLimit,
-			Method:     builtin.MethodsAccount.CallContract,
+			Method:     builtin.MethodsContract.CallContract,
 			Params:     params,
 			Nonce:      0,
 		}
