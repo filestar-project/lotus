@@ -200,8 +200,10 @@ func (suite *EvmContractSuite) TestSuicideContract() {
 	//Test that contract dies
 	callParams.args.msg.Nonce++
 	callParams.funcSign = tests.HelloWorldFuncSignature
-	result, _ = suite.callContract(&callParams, &chainParams)
+	result, err := suite.callContract(&callParams, &chainParams)
 	r.Nil(t, result)
+	stringReturn = string(err.Error())
+	r.Contains(t, stringReturn, "no such actor")
 }
 
 func (suite *EvmContractSuite) TestERC20Contract() {
