@@ -16,8 +16,12 @@ import (
 	"github.com/filecoin-project/lotus/chain/actors/aerrors"
 	"github.com/filecoin-project/lotus/chain/actors/policy"
 	"github.com/filecoin-project/lotus/chain/gen"
+	"github.com/filecoin-project/lotus/chain/state"
+	"github.com/filecoin-project/lotus/chain/stmgr"
 	"github.com/filecoin-project/lotus/chain/types"
+	"github.com/filecoin-project/lotus/chain/vm"
 	c "github.com/filecoin-project/lotus/conformance"
+	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper"
 	"github.com/filecoin-project/test-vectors/schema"
 	"github.com/filestar-project/evm-adapter/tests"
 	"github.com/filestar-project/evm-adapter/tests/mocks"
@@ -183,6 +187,47 @@ func (suite *EvmContractSuite) callContract(callParams *CallContractParams, chai
 	return nil, ret.ActorErr
 }
 
+func (suite *EvmContractSuite) getBalance(addr address.Address, msg *types.Message, chainParams *ChainParams) (big.Int, aerrors.ActorError) {
+	params := c.ExecuteMessageParams{
+		Preroot:    chainParams.root,
+		Epoch:      chainParams.baseEpoch + 1,
+		Message:    msg,
+		BaseFee:    c.DefaultBaseFee,
+		CircSupply: c.DefaultCirculatingSupply,
+	}
+
+	if params.Rand == nil {
+		params.Rand = c.NewFixedRand()
+	}
+
+	// dummy state manager; only to reference the GetNetworkVersion method,
+	// which does not depend on state.
+	sm := stmgr.NewStateManager(nil)
+
+	vmOpts := &vm.VMOpts{
+		StateBase: params.Preroot,
+		Epoch:     params.Epoch,
+		Bstore:    chainParams.cg.ChainStore().Blockstore(),
+		Syscalls:  vm.Syscalls(ffiwrapper.ProofVerifier),
+		CircSupplyCalc: func(_ context.Context, _ abi.ChainEpoch, _ *state.StateTree) (abi.TokenAmount, error) {
+			return params.CircSupply, nil
+		},
+		Rand:        params.Rand,
+		BaseFee:     params.BaseFee,
+		NtwkVersion: sm.GetNtwkVersion,
+	}
+
+	lvm, err := vm.NewVM(context.TODO(), vmOpts)
+	if err != nil {
+		return big.NewInt(0), aerrors.HandleExternalError(err, "can't create vm")
+	}
+	b, err := lvm.ActorBalance(addr)
+	if err != nil {
+		return big.NewInt(0), aerrors.HandleExternalError(err, "can't get actor")
+	}
+	return b, nil
+}
+
 func (suite *EvmContractSuite) TestSuicideContract() {
 	t := suite.T()
 	createParams := CreateContractParams{contractCode: tests.HelloWorldContractCode}
@@ -304,12 +349,17 @@ func (suite *EvmContractSuite) TestLargeStorageContract() {
 
 func (suite *EvmContractSuite) TestErrorContract() {
 	t := suite.T()
+	amount := 10000
+	lessAmount := uint64(10)
 	createParams := CreateContractParams{contractCode: tests.ErrorContractCode}
 	chainParams := suite.initChain()
 	args := suite.createContract(&createParams, &chainParams)
-	callParams := CallContractParams{funcSign: tests.SuccessOrErrorFuncSignature, msgValue: uint64(10000), args: args}
+	callParams := CallContractParams{funcSign: tests.SuccessOrErrorFuncSignature, msgValue: uint64(amount), args: args}
 	//Success function test
 	result, _ := suite.callContract(&callParams, &chainParams)
+	// Check balance
+	balance, err := suite.getBalance(callParams.args.toAddress, callParams.args.msg, &chainParams)
+	r.Equal(t, big.NewInt(int64(amount)), balance)
 	// GetI function test
 	callParams.args.msg.Nonce++
 	callParams.funcSign = tests.GetIFuncSignature
@@ -317,13 +367,16 @@ func (suite *EvmContractSuite) TestErrorContract() {
 	result, _ = suite.callContract(&callParams, &chainParams)
 	parsedValue, isCorrect := big.NewInt(0).SetString(fmt.Sprintf("%x", result), 16)
 	r.True(t, isCorrect)
-	r.Equal(t, big.NewInt(10000), big.NewInt(parsedValue.Int64()))
+	r.Equal(t, big.NewInt(int64(amount)), big.NewInt(parsedValue.Int64()))
 	// Error function test
 	callParams.args.msg.Nonce++
 	callParams.funcSign = tests.SuccessOrErrorFuncSignature
-	callParams.msgValue = 10
-	result, err := suite.callContract(&callParams, &chainParams)
+	callParams.msgValue = lessAmount
+	result, err = suite.callContract(&callParams, &chainParams)
 	r.NotNil(t, err)
+	// Check balance
+	balance, err = suite.getBalance(callParams.args.toAddress, callParams.args.msg, &chainParams)
+	r.Equal(t, big.NewInt(int64(amount)), balance)
 	// GetI function test
 	callParams.args.msg.Nonce++
 	callParams.funcSign = tests.GetIFuncSignature
@@ -331,7 +384,7 @@ func (suite *EvmContractSuite) TestErrorContract() {
 	result, _ = suite.callContract(&callParams, &chainParams)
 	parsedValue, isCorrect = big.NewInt(0).SetString(fmt.Sprintf("%x", result), 16)
 	r.True(t, isCorrect)
-	r.Equal(t, big.NewInt(10000), big.NewInt(parsedValue.Int64()))
+	r.Equal(t, big.NewInt(int64(amount)), big.NewInt(parsedValue.Int64()))
 }
 
 func TestEvmContract(t *testing.T) {
