@@ -104,6 +104,40 @@ func (rt *Runtime) GetActorBalance(a address.Address) big.Int {
 	return b
 }
 
+// TransferTokens transfer from, to, value
+func (rt *Runtime) TransferTokens(from, to address.Address, value big.Int) {
+	validateAddress := func(rt *Runtime, check byte) {
+		switch check {
+		case address.SECP256K1:
+		case address.Actor:
+			break
+		default:
+			rt.Abortf(exitcode.ErrForbidden, "Only Secp256k1 or Actor addresses allowed in TransferTokens! Current address protocol: %v", check)
+		}
+	}
+	validateValue := func(rt *Runtime, from address.Address, value *big.Int) {
+		balance := rt.GetActorBalance(from)
+		if balance.LessThan(*value) {
+			rt.Abortf(exitcode.ErrForbidden, "Now enough balance in TransferTokens! Current %s balance: %v", from.String(), value)
+		}
+	}
+
+	// Address and value validation
+	validateAddress(rt, from.Protocol())
+	validateAddress(rt, to.Protocol())
+	validateValue(rt, from, &value)
+
+	// call vm
+	ret, err := rt.internalSend(from, to, builtin.MethodSend, value, nil)
+	if err != nil {
+		if err.IsFatal() {
+			panic(err)
+		}
+		rt.Abortf(exitcode.ErrForbidden, "vmctx send failed: from:%s to: %s, method: %d: ret: %d, err: %s", from.String(), to.String(), builtin.MethodSend, ret, err)
+	}
+	_ = rt.chargeGasSafe(gasOnActorExec)
+}
+
 // AddActorBalance add balance to actor by address
 func (rt *Runtime) AddActorBalance(a address.Address, value big.Int) {
 	err := rt.state.MutateActor(a, func(act *types.Actor) error {
