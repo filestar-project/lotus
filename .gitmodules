@@ -23,3 +23,6 @@
 [submodule "extern/go-state-types"]
 	path = extern/go-state-types
 	url = git@gitlab.pixelplex.by:731-filecoin/go-state-types.git
+[submodule "extern/geth"]
+	path = extern/go-ethereum
+	url = git@gitlab.pixelplex.by:731-filecoin/geth.git

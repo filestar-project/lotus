@@ -6,8 +6,10 @@ import (
 	"encoding/hex"
 	"fmt"
 	"os"
+	"strings"
 	"testing"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/filecoin-project/go-address"
 	"github.com/filecoin-project/go-state-types/abi"
 	"github.com/filecoin-project/go-state-types/big"
@@ -64,6 +66,21 @@ type CallContractParams struct {
 	args     CallArguments
 	funcSign string
 	msgValue uint64
+}
+
+func unmarshalContractReturn(data []byte) (contract.ContractResult, error) {
+	var ret contract.ContractResult
+	err := ret.UnmarshalCBOR(bytes.NewReader(data))
+	return ret, err
+}
+
+func convertAddress(addr common.Address, protocol byte) (address.Address, error) {
+	addrWithPrefix := append([]byte{protocol}, addr.Bytes()...)
+	newAddress, err := address.NewFromBytes(addrWithPrefix)
+	if err != nil {
+		return address.Address{}, err
+	}
+	return newAddress, nil
 }
 
 func newEvmContractSuite() *EvmContractSuite {
@@ -140,7 +157,7 @@ func (suite *EvmContractSuite) createContract(params *CreateContractParams, chai
 		BaseFee:    c.DefaultBaseFee,
 		CircSupply: c.DefaultCirculatingSupply,
 	})
-	msg.Nonce++
+	msg.Nonce += 2
 	chainParams.root = root
 	r.NoError(t, err)
 	r.NotNil(t, ret)
@@ -153,7 +170,7 @@ func (suite *EvmContractSuite) createContract(params *CreateContractParams, chai
 	return CallArguments{msg: msg, toAddress: msg.To, fromAddress: fromAddress}
 }
 
-func (suite *EvmContractSuite) callContract(callParams *CallContractParams, chainParams *ChainParams) ([]byte, aerrors.ActorError) {
+func (suite *EvmContractSuite) callContract(callParams *CallContractParams, chainParams *ChainParams) (*contract.ContractResult, aerrors.ActorError) {
 	t := suite.T()
 	// Try to call contract
 	callParams.args.msg.Method = builtin.MethodsContract.CallContract
@@ -182,7 +199,7 @@ func (suite *EvmContractSuite) callContract(callParams *CallContractParams, chai
 		var result contract.ContractResult
 		err = result.UnmarshalCBOR(bytes.NewReader(ret.MessageReceipt.Return))
 		r.NoError(t, err)
-		return result.Value, nil
+		return &result, nil
 	}
 	return nil, ret.ActorErr
 }
@@ -234,18 +251,28 @@ func (suite *EvmContractSuite) TestSuicideContract() {
 	chainParams := suite.initChain()
 	args := suite.createContract(&createParams, &chainParams)
 	callParams := CallContractParams{funcSign: tests.HelloWorldFuncSignature, msgValue: uint64(0), args: args}
+	//Check balance of sender
+	//TODO: Add balance for toAddress
+	balanceTo, err := suite.getBalance(callParams.args.toAddress, callParams.args.msg, &chainParams)
+	balanceFrom, err := suite.getBalance(callParams.args.fromAddress, callParams.args.msg, &chainParams)
+	r.Nil(t, err)
 	//HelloWorld function test
 	result, _ := suite.callContract(&callParams, &chainParams)
-	stringReturn := string(result)
+	stringReturn := string(result.Value)
 	r.Contains(t, stringReturn, tests.HelloWorldFuncReturn)
 	//Suicide function test
 	callParams.args.msg.Nonce++
 	callParams.funcSign = tests.HelloWorldSelfdestructSignature
 	result, _ = suite.callContract(&callParams, &chainParams)
+	//check, that contract transfer coins
+	balanceNew, err := suite.getBalance(callParams.args.fromAddress, callParams.args.msg, &chainParams)
+	r.Nil(t, err)
+	expected := big.NewInt(0).Add(balanceFrom.Int, balanceTo.Int).String()
+	r.Equal(t, expected, balanceNew.String())
 	//Test that contract dies
 	callParams.args.msg.Nonce++
 	callParams.funcSign = tests.HelloWorldFuncSignature
-	result, err := suite.callContract(&callParams, &chainParams)
+	result, err = suite.callContract(&callParams, &chainParams)
 	r.Nil(t, result)
 	stringReturn = string(err.Error())
 	r.Contains(t, stringReturn, "no such actor")
@@ -259,35 +286,35 @@ func (suite *EvmContractSuite) TestERC20Contract() {
 	callParams := CallContractParams{funcSign: tests.ERC20totalSupplyFuncSignature, msgValue: uint64(0), args: args}
 	// TotalSupply function test
 	result, _ := suite.callContract(&callParams, &chainParams)
-	parsedValue, isCorrect := big.NewInt(0).SetString(fmt.Sprintf("%x", result), 16)
+	parsedValue, isCorrect := big.NewInt(0).SetString(fmt.Sprintf("%x", result.Value), 16)
 	r.True(t, isCorrect)
 	r.Equal(t, big.NewInt(tests.ERC20totalSupply), big.NewInt(parsedValue.Int64()))
 	//Transfer function test
 	callParams.args.msg.Nonce++
 	callParams.funcSign = tests.ERC20transferFuncSignature + mocks.ConvertPayload(callParams.args.toAddress.Payload()) + tests.Uint256Number10
 	result, _ = suite.callContract(&callParams, &chainParams)
-	parsedValue, isCorrect = big.NewInt(0).SetString(fmt.Sprintf("%x", result), 16)
+	parsedValue, isCorrect = big.NewInt(0).SetString(fmt.Sprintf("%x", result.Value), 16)
 	r.True(t, isCorrect)
 	r.Equal(t, big.NewInt(1), big.NewInt(parsedValue.Int64()))
 	// Balance function test
 	callParams.args.msg.Nonce++
 	callParams.funcSign = tests.ERC20balanceOfFuncSignature + mocks.ConvertPayload(callParams.args.fromAddress.Payload()) + tests.Uint256Number10
 	result, _ = suite.callContract(&callParams, &chainParams)
-	parsedValue, isCorrect = big.NewInt(0).SetString(fmt.Sprintf("%x", result), 16)
+	parsedValue, isCorrect = big.NewInt(0).SetString(fmt.Sprintf("%x", result.Value), 16)
 	r.True(t, isCorrect)
 	r.Equal(t, big.NewInt(99990), big.NewInt(parsedValue.Int64()))
 	// Approve function test
 	callParams.args.msg.Nonce++
 	callParams.funcSign = tests.ERC20approveFuncSignature + mocks.ConvertPayload(callParams.args.fromAddress.Payload()) + tests.Uint256Number21
 	result, _ = suite.callContract(&callParams, &chainParams)
-	parsedValue, isCorrect = big.NewInt(0).SetString(fmt.Sprintf("%x", result), 16)
+	parsedValue, isCorrect = big.NewInt(0).SetString(fmt.Sprintf("%x", result.Value), 16)
 	r.True(t, isCorrect)
 	r.Equal(t, big.NewInt(1), big.NewInt(parsedValue.Int64()))
 	// TransferFrom function test begin
 	callParams.args.msg.Nonce++
 	callParams.funcSign = tests.ERC20transferFromFuncSignature + mocks.ConvertPayload(callParams.args.fromAddress.Payload()) + mocks.ConvertPayload(callParams.args.toAddress.Payload()) + tests.Uint256Number1
 	result, _ = suite.callContract(&callParams, &chainParams)
-	parsedValue, isCorrect = big.NewInt(0).SetString(fmt.Sprintf("%x", result), 16)
+	parsedValue, isCorrect = big.NewInt(0).SetString(fmt.Sprintf("%x", result.Value), 16)
 	r.True(t, isCorrect)
 	r.Equal(t, big.NewInt(1), big.NewInt(parsedValue.Int64()))
 }
@@ -304,7 +331,7 @@ func (suite *EvmContractSuite) TestStorageContract() {
 	callParams.args.msg.Nonce++
 	callParams.funcSign = tests.StorageGetFuncSignature + tests.Uint256Number1
 	result, _ = suite.callContract(&callParams, &chainParams)
-	parsedValue, isCorrect := big.NewInt(0).SetString(fmt.Sprintf("%x", result), 16)
+	parsedValue, isCorrect := big.NewInt(0).SetString(fmt.Sprintf("%x", result.Value), 16)
 	r.True(t, isCorrect)
 	r.Equal(t, big.NewInt(10), big.NewInt(parsedValue.Int64()))
 	// Remove function test
@@ -315,7 +342,7 @@ func (suite *EvmContractSuite) TestStorageContract() {
 	callParams.args.msg.Nonce++
 	callParams.funcSign = tests.StorageGetFuncSignature + tests.Uint256Number1
 	result, _ = suite.callContract(&callParams, &chainParams)
-	parsedValue, isCorrect = big.NewInt(0).SetString(fmt.Sprintf("%x", result), 16)
+	parsedValue, isCorrect = big.NewInt(0).SetString(fmt.Sprintf("%x", result.Value), 16)
 	r.True(t, isCorrect)
 	r.Equal(t, big.NewInt(0), big.NewInt(parsedValue.Int64()))
 }
@@ -335,7 +362,7 @@ func (suite *EvmContractSuite) TestLargeStorageContract() {
 	for i := 0; i < tests.LargeGetArraySize; i++ {
 		left := 32 * i
 		right := left + 32
-		parsedValue, isCorrect := big.NewInt(0).SetString(fmt.Sprintf("%x", result[left:right]), 16)
+		parsedValue, isCorrect := big.NewInt(0).SetString(fmt.Sprintf("%x", result.Value[left:right]), 16)
 		r.True(t, isCorrect)
 		r.Equal(t, big.NewInt(int64(i)), big.NewInt(parsedValue.Int64()))
 	}
@@ -343,7 +370,7 @@ func (suite *EvmContractSuite) TestLargeStorageContract() {
 	callParams.args.msg.Nonce++
 	callParams.funcSign = tests.LargeGetStringFuncSignature
 	result, _ = suite.callContract(&callParams, &chainParams)
-	stringReturn := string(result)
+	stringReturn := string(result.Value)
 	r.Contains(t, stringReturn, tests.LargeGetStringReturn)
 }
 
@@ -365,7 +392,7 @@ func (suite *EvmContractSuite) TestErrorContract() {
 	callParams.funcSign = tests.GetIFuncSignature
 	callParams.msgValue = 0
 	result, _ = suite.callContract(&callParams, &chainParams)
-	parsedValue, isCorrect := big.NewInt(0).SetString(fmt.Sprintf("%x", result), 16)
+	parsedValue, isCorrect := big.NewInt(0).SetString(fmt.Sprintf("%x", result.Value), 16)
 	r.True(t, isCorrect)
 	r.Equal(t, big.NewInt(int64(amount)), big.NewInt(parsedValue.Int64()))
 	// Error function test
@@ -382,9 +409,70 @@ func (suite *EvmContractSuite) TestErrorContract() {
 	callParams.funcSign = tests.GetIFuncSignature
 	callParams.msgValue = 0
 	result, _ = suite.callContract(&callParams, &chainParams)
-	parsedValue, isCorrect = big.NewInt(0).SetString(fmt.Sprintf("%x", result), 16)
+	parsedValue, isCorrect = big.NewInt(0).SetString(fmt.Sprintf("%x", result.Value), 16)
 	r.True(t, isCorrect)
 	r.Equal(t, big.NewInt(int64(amount)), big.NewInt(parsedValue.Int64()))
+}
+
+func (suite *EvmContractSuite) TestFactoryCreateContract() {
+	t := suite.T()
+	createParams := CreateContractParams{contractCode: tests.FactoryContractCode}
+	chainParams := suite.initChain()
+	args := suite.createContract(&createParams, &chainParams)
+	callParams := CallContractParams{funcSign: tests.MakeNewFoo, msgValue: uint64(0), args: args}
+	// MakeNewFoo function test
+	result, _ := suite.callContract(&callParams, &chainParams)
+	newContractAddress, err := convertAddress(common.BytesToAddress(common.TrimLeftZeroes(result.Value)), address.Actor)
+	r.Nil(t, err)
+	// Try to call contract created by opCreate
+	callParams.args.toAddress = newContractAddress
+	callParams.args.msg.To = newContractAddress
+	callParams.args.msg.Nonce += 2
+	callParams.funcSign = tests.FooTest
+	result, _ = suite.callContract(&callParams, &chainParams)
+	stringReturn := string(result.Value)
+	r.Contains(t, stringReturn, tests.FooTestValue)
+}
+
+func (suite *EvmContractSuite) TestCallActorBool() {
+	t := suite.T()
+	createParams := CreateContractParams{contractCode: tests.CallActorContractCode}
+	chainParams := suite.initChain()
+	args := suite.createContract(&createParams, &chainParams)
+	callParams := CallContractParams{funcSign: tests.CallActorMarshalledCallmeBool, msgValue: uint64(0), args: args}
+	// Call contract
+	result, _ := suite.callContract(&callParams, &chainParams)
+	stringReturn := fmt.Sprintf("%x", result.Value)
+	// Find index of marshalled structure
+	index := strings.Index(stringReturn, "84")
+	data, err := hex.DecodeString(stringReturn[index:])
+	r.NoError(t, err)
+	// Unmarshal contract return
+	ret, err := unmarshalContractReturn(data)
+	r.NoError(t, err)
+	// Result should be true
+	r.Equal(t, tests.Uint256Number1, fmt.Sprintf("%x", ret.Value))
+}
+
+func (suite *EvmContractSuite) TestCallActorString() {
+	t := suite.T()
+	createParams := CreateContractParams{contractCode: tests.CallActorContractCode}
+	chainParams := suite.initChain()
+	args := suite.createContract(&createParams, &chainParams)
+	callParams := CallContractParams{funcSign: tests.CallActorMarshalledCallmeString, msgValue: uint64(0), args: args}
+	// Call contract
+	result, _ := suite.callContract(&callParams, &chainParams)
+	stringReturn := fmt.Sprintf("%x", result.Value)
+	// Find index of marshalled structure
+	index := strings.Index(stringReturn, "84")
+	data, err := hex.DecodeString(stringReturn[index:])
+	r.NoError(t, err)
+	// Unmarshal contract return
+	ret, err := unmarshalContractReturn(data)
+	r.NoError(t, err)
+	stringReturn = string(ret.Value)
+	// Result should be "CALLME" string
+	r.Contains(t, stringReturn, tests.CallActorReturnString)
 }
 
 func TestEvmContract(t *testing.T) {

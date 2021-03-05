@@ -167,7 +167,7 @@ var contractDefaultFlags = []cli.Flag{
 }
 
 type contractCreateInfo struct {
-	Cid     string
+	Cid string
 }
 
 var contractCreate = &cli.Command{

@@ -118,7 +118,8 @@
   "fil/2/init": [
     "Send",
     "Constructor",
-    "Exec"
+    "Exec",
+    "ExecWithResult"
   ],
   "fil/2/multisig": [
     "Send",

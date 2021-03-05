@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/filecoin-project/go-address"
+	addr "github.com/filecoin-project/go-address"
 	"github.com/filecoin-project/go-state-types/abi"
 	"github.com/filecoin-project/go-state-types/cbor"
 	"github.com/filecoin-project/go-state-types/crypto"
@@ -102,6 +103,26 @@ func (rt *Runtime) GetActorBalance(a address.Address) big.Int {
 		rt.Abortf(err.RetCode(), "get current balance: %v", err)
 	}
 	return b
+}
+
+// GetNonce get nonce from actor via address
+func (rt *Runtime) GetNonce(addr addr.Address) uint64 {
+	a, err := rt.state.GetActor(addr)
+	if err != nil {
+		rt.Abortf(exitcode.ErrNotFound, "get current nonce: %v", err)
+	}
+	return a.Nonce
+}
+
+// SetNonce set nonce to new value for actor
+func (rt *Runtime) SetNonce(addr addr.Address, value uint64) {
+	err := rt.state.MutateActor(addr, func(act *types.Actor) error {
+		act.Nonce = value
+		return nil
+	})
+	if err != nil {
+		rt.Abortf(exitcode.ErrIllegalState, "SetNonce nonce: %v", err)
+	}
 }
 
 // TransferTokens transfer from, to, value
@@ -495,6 +516,24 @@ func (rt *Runtime) Send(to address.Address, method abi.MethodNum, m cbor.Marshal
 		rt.Abortf(exitcode.ErrSerialization, "failed to unmarshal return value: %s", err)
 	}
 	return 0
+}
+
+// SendMarshalled send marshalled message
+func (rt *Runtime) SendMarshalled(to address.Address, method abi.MethodNum, value abi.TokenAmount, params []byte) ([]byte, exitcode.ExitCode) {
+	if !rt.allowInternal {
+		rt.Abortf(exitcode.SysErrorIllegalActor, "runtime.Send() is currently disallowed")
+	}
+
+	ret, err := rt.internalSend(rt.Receiver(), to, method, value, params)
+	if err != nil {
+		if err.IsFatal() {
+			panic(err)
+		}
+		log.Warnf("vmctx send failed: to: %s, method: %d: ret: %d, err: %s", to, method, ret, err)
+		return []byte{}, err.RetCode()
+	}
+	_ = rt.chargeGasSafe(gasOnActorExec)
+	return ret, 0
 }
 
 func (rt *Runtime) internalSend(from, to address.Address, method abi.MethodNum, value types.BigInt, params []byte) ([]byte, aerrors.ActorError) {
