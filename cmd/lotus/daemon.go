@@ -273,10 +273,11 @@ var DaemonCmd = &cli.Command{
 		stop, err := node.New(ctx,
 			node.FullAPI(&api, node.Lite(isLite)),
 
-			node.Override(new(dtypes.Bootstrapper), isBootstrapper),
-			node.Override(new(dtypes.ShutdownChan), shutdownChan),
 			node.Online(),
 			node.Repo(r),
+
+			node.Override(new(dtypes.Bootstrapper), isBootstrapper),
+			node.Override(new(dtypes.ShutdownChan), shutdownChan),
 
 			genesis,
 			liteModeDeps,
