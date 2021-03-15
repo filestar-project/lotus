@@ -434,6 +434,17 @@ func (suite *EvmContractSuite) TestFactoryCreateContract() {
 	r.Contains(t, stringReturn, tests.FooTestValue)
 }
 
+func (suite *EvmContractSuite) TestFactoryCreateFailContract() {
+	t := suite.T()
+	createParams := CreateContractParams{contractCode: tests.FactoryContractCodeFail}
+	chainParams := suite.initChain()
+	args := suite.createContract(&createParams, &chainParams)
+	callParams := CallContractParams{funcSign: tests.MakeNewFoo, msgValue: uint64(0), args: args}
+	// MakeNewFoo function test
+	_, err := suite.callContract(&callParams, &chainParams)
+	r.NotNil(t, err)
+}
+
 func (suite *EvmContractSuite) TestCallActorBool() {
 	t := suite.T()
 	createParams := CreateContractParams{contractCode: tests.CallActorContractCode}
@@ -473,6 +484,46 @@ func (suite *EvmContractSuite) TestCallActorString() {
 	stringReturn = string(ret.Value)
 	// Result should be "CALLME" string
 	r.Contains(t, stringReturn, tests.CallActorReturnString)
+}
+
+func (suite *EvmContractSuite) TestCallActorFailBool() {
+	t := suite.T()
+	createParams := CreateContractParams{contractCode: tests.CallActorContractCodeFail}
+	chainParams := suite.initChain()
+	args := suite.createContract(&createParams, &chainParams)
+	callParams := CallContractParams{funcSign: tests.CallActorMarshalledCallmeBool, msgValue: uint64(0), args: args}
+	// Call contract
+	_, err := suite.callContract(&callParams, &chainParams)
+	r.Error(t, err)
+	callParams.funcSign = tests.CallActorGetValue
+	callParams.args.msg.Nonce++
+	// Call contract
+	result, err2 := suite.callContract(&callParams, &chainParams)
+	r.NoError(t, err2)
+	// Unmarshal contract return
+	stringReturn := fmt.Sprintf("%x", result.Value)
+	// Result should be true
+	r.Equal(t, tests.Uint256Number1, stringReturn)
+}
+
+func (suite *EvmContractSuite) TestCallActorFailString() {
+	t := suite.T()
+	createParams := CreateContractParams{contractCode: tests.CallActorContractCodeFail}
+	chainParams := suite.initChain()
+	args := suite.createContract(&createParams, &chainParams)
+	callParams := CallContractParams{funcSign: tests.CallActorMarshalledCallmeString, msgValue: uint64(0), args: args}
+	// Call contract
+	_, err := suite.callContract(&callParams, &chainParams)
+	r.Error(t, err)
+	callParams.funcSign = tests.CallActorGetValue
+	callParams.args.msg.Nonce++
+	// Call contract
+	result, err2 := suite.callContract(&callParams, &chainParams)
+	r.NoError(t, err2)
+	// Unmarshal contract return
+	stringReturn := fmt.Sprintf("%x", result.Value)
+	// Result should be true
+	r.Equal(t, tests.Uint256Number1, stringReturn)
 }
 
 func TestEvmContract(t *testing.T) {
