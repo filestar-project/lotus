@@ -157,7 +157,7 @@ func (suite *EvmContractSuite) createContract(params *CreateContractParams, chai
 		BaseFee:    c.DefaultBaseFee,
 		CircSupply: c.DefaultCirculatingSupply,
 	})
-	msg.Nonce += 2
+	msg.Nonce++
 	chainParams.root = root
 	r.NoError(t, err)
 	r.NotNil(t, ret)
@@ -427,7 +427,7 @@ func (suite *EvmContractSuite) TestFactoryCreateContract() {
 	// Try to call contract created by opCreate
 	callParams.args.toAddress = newContractAddress
 	callParams.args.msg.To = newContractAddress
-	callParams.args.msg.Nonce += 2
+	callParams.args.msg.Nonce += 1
 	callParams.funcSign = tests.FooTest
 	result, _ = suite.callContract(&callParams, &chainParams)
 	stringReturn := string(result.Value)

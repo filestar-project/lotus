@@ -192,7 +192,6 @@ func (a *MpoolAPI) MpoolPushMessage(ctx context.Context, msg *types.Message, spe
 		var contractParams contract.ContractParams
 		if err := contractParams.UnmarshalCBOR(bytes.NewReader(msg.Params)); err == nil {
 			contractParams.CommitStatus = false
-			isChanged = true
 			contractBuf, err := actors.SerializeParams(&contractParams)
 			if err != nil {
 				return nil, xerrors.Errorf("Serialize contractParams error: %w", err)

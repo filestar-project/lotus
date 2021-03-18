@@ -77,7 +77,7 @@ type Runtime struct {
 	originNonce uint64
 
 	// origin reciever address
-	originReciever address.Address
+	recieverAddress address.Address
 
 	executionTrace    types.ExecutionTrace
 	depth             uint64
@@ -92,8 +92,8 @@ func (rt *Runtime) Origin() address.Address {
 	return rt.origin
 }
 
-func (rt *Runtime) OriginReciever() address.Address {
-	return rt.originReciever
+func (rt *Runtime) RecieverAddress() address.Address {
+	return rt.recieverAddress
 }
 
 // GetActorBalance get balance by address
@@ -205,7 +205,7 @@ func (rt *Runtime) DeleteContractActor(a address.Address) {
 	isContractActor(rt, a)
 
 	// check that it reciever of Runtime is a contract actor
-	isContractActor(rt, rt.OriginReciever())
+	isContractActor(rt, rt.RecieverAddress())
 
 	// Delete the executing actor
 	if err := rt.state.DeleteActor(a); err != nil {
