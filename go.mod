@@ -156,6 +156,6 @@ replace github.com/filecoin-project/fil-blst => ./extern/fil-blst
 
 replace github.com/filecoin-project/specs-actors/v2 => ./extern/specs-actors
 
-replace github.com/filecoin-project/go-state-types => ./extern/go-state-types
+replace github.com/filecoin-project/go-state-types => github.com/filestar-project/go-state-types v0.1.0
 
 replace github.com/filecoin-project/go-paramfetch => github.com/filestar-project/go-paramfetch v0.0.2

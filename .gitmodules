@@ -18,6 +18,3 @@
 	path = extern/specs-actors
 	url = https://github.com/filestar-project/specs-actors.git
 	branch = support-8G-sector
-[submodule "extern/go-state-types"]
-	path = extern/go-state-types
-	url = https://github.com/filestar-project/go-state-types.git
