@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"fmt"
+	"github.com/filecoin-project/lotus/chain/actors/builtin/stake"
 	"time"
 
 	datatransfer "github.com/filecoin-project/go-data-transfer"
@@ -437,6 +438,16 @@ type FullNode interface {
 	StateVMCirculatingSupplyInternal(context.Context, types.TipSetKey) (CirculatingSupply, error)
 	// StateNetworkVersion returns the network version at the given tipset
 	StateNetworkVersion(context.Context, types.TipSetKey) (network.Version, error)
+
+	// stake
+	StateStakeInfo(context.Context, types.TipSetKey) (*stake.StakeInfo, error)
+	StateStakerPower(context.Context, address.Address, types.TipSetKey) (abi.StakePower, error)
+	StateStakerLockedPrincipalList(context.Context, address.Address, types.TipSetKey) ([]stake.LockedPrincipal, error)
+	StateStakerLockedPrincipal(context.Context, address.Address, types.TipSetKey) (abi.TokenAmount, error)
+	StateStakerAvailablePrincipal(context.Context, address.Address, types.TipSetKey) (abi.TokenAmount, error)
+	StateStakerVestingRewardList(context.Context, address.Address, types.TipSetKey) ([]stake.VestingFund, error)
+	StateStakerVestingReward(context.Context, address.Address, types.TipSetKey) (abi.TokenAmount, error)
+	StateStakerAvailableReward(context.Context, address.Address, types.TipSetKey) (abi.TokenAmount, error)
 
 	// MethodGroup: Msig
 	// The Msig methods are used to interact with multisig wallets on the

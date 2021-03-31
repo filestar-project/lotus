@@ -68,12 +68,14 @@ var Devnet = true
 
 const FilBase = uint64(2_000_000_000)
 const FilAllocStorageMining = uint64(1_100_000_000)
+const FilAllocStakeMining = uint64(100_000_000) // 暂定1亿吧，能从storage里挪过来最好
 
 const FilecoinPrecision = uint64(1_000_000_000_000_000_000)
 const FilReserved = uint64(300_000_000)
 
 var InitialRewardBalance *big.Int
 var InitialFilReserved *big.Int
+var InitialStakeBalance *big.Int
 
 // TODO: Move other important consts here
 
@@ -83,6 +85,9 @@ func init() {
 
 	InitialFilReserved = big.NewInt(int64(FilReserved))
 	InitialFilReserved = InitialFilReserved.Mul(InitialFilReserved, big.NewInt(int64(FilecoinPrecision)))
+
+	InitialStakeBalance = big.NewInt(int64(FilAllocStakeMining))
+	InitialStakeBalance = InitialStakeBalance.Mul(InitialStakeBalance, big.NewInt(int64(FilecoinPrecision)))
 
 	if os.Getenv("LOTUS_ADDRESS_TYPE") == AddressMainnetEnvVar {
 		SetAddressNetwork(address.Mainnet)
@@ -108,6 +113,7 @@ const BlockMessageLimit = 10000
 
 var BlockGasLimit = int64(10_000_000_000)
 var BlockGasTarget = BlockGasLimit / 2
+
 const BaseFeeMaxChangeDenom = 8 // 12.5%
 const InitialBaseFee = 100e6
 const MinimumBaseFee = 100

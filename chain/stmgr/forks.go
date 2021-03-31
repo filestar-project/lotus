@@ -5,6 +5,8 @@ import (
 	"context"
 	"encoding/binary"
 	"github.com/filecoin-project/lotus/chain/actors/policy"
+	"github.com/filecoin-project/lotus/chain/gen/genesis"
+	cron2 "github.com/filecoin-project/specs-actors/v2/actors/builtin/cron"
 	"math"
 
 	"github.com/filecoin-project/lotus/chain/actors/builtin"
@@ -24,6 +26,7 @@ import (
 	adt0 "github.com/filecoin-project/specs-actors/actors/util/adt"
 
 	"github.com/filecoin-project/specs-actors/actors/migration/nv3"
+	builtin2 "github.com/filecoin-project/specs-actors/v2/actors/builtin"
 	m2 "github.com/filecoin-project/specs-actors/v2/actors/migration"
 
 	"github.com/filecoin-project/lotus/build"
@@ -95,6 +98,10 @@ func DefaultUpgradeSchedule() UpgradeSchedule {
 		Height:    build.Upgrade8GiBSectorHeight,
 		Network:   network.Version7,
 		Migration: Upgrade8GiBSector,
+	}, {
+		Height:    build.UpgradeStakeHeight,
+		Network:   network.Version8,
+		Migration: UpgradeStake,
 	}}
 
 	if build.UpgradeActorsV2Height == math.MaxInt64 { // disable actors upgrade
@@ -667,6 +674,49 @@ func Upgrade8GiBSector(ctx context.Context, sm *StateManager, cb ExecCallback, r
 	)
 	build.BlockGasLimit = build.BlockGasLimit * 4
 	build.BlockGasTarget = build.BlockGasTarget * 4
+	return tree.Flush(ctx)
+}
+
+func UpgradeStake(ctx context.Context, sm *StateManager, cb ExecCallback, root cid.Cid, epoch abi.ChainEpoch, ts *types.TipSet) (cid.Cid, error) {
+	tree, err := sm.StateTree(root)
+	if err != nil {
+		return cid.Undef, xerrors.Errorf("getting state tree: %w", err)
+	}
+
+	actor, err := genesis.SetupStakeActor(sm.cs.Blockstore(), epoch+1)
+	if err != nil {
+		return cid.Undef, xerrors.Errorf("setup stake actor: %w", err)
+	}
+
+	if err = tree.SetActor(builtin2.StakeActorAddr, actor); err != nil {
+		return cid.Undef, xerrors.Errorf("setting stake actor: %w", err)
+	}
+
+	cronActor, err := tree.GetActor(builtin2.CronActorAddr)
+	if err != nil {
+		return cid.Undef, xerrors.Errorf("getting cron actor: %w", err)
+	}
+
+	var cronState cron2.State
+	if err = sm.ChainStore().Store(ctx).Get(ctx, cronActor.Head, &cronState); err != nil {
+		return cid.Undef, xerrors.Errorf("getting cron state: %w", err)
+	}
+
+	entry := cron2.Entry{
+		Receiver:  builtin2.StakeActorAddr,
+		MethodNum: builtin2.MethodsStake.OnEpochTickEnd,
+	}
+	cronState.Entries = append(cronState.Entries, entry)
+
+	cronActor.Head, err = sm.ChainStore().Store(ctx).Put(ctx, &cronState)
+	if err != nil {
+		return cid.Undef, xerrors.Errorf("saving cron state: %w", err)
+	}
+
+	if err = tree.SetActor(builtin2.CronActorAddr, cronActor); err != nil {
+		return cid.Undef, xerrors.Errorf("setting cron actor: %w", err)
+	}
+
 	return tree.Flush(ctx)
 }
 
