@@ -11,9 +11,6 @@
 [submodule "extern/fil-blst"]
 	path = extern/fil-blst
 	url = https://github.com/filestar-project/fil-blst.git
-[submodule "extern/oni"]
-	path = extern/oni
-	url = https://github.com/filestar-project/oni
 [submodule "extern/specs-actors"]
 	path = extern/specs-actors
 	url = https://github.com/filestar-project/specs-actors.git
