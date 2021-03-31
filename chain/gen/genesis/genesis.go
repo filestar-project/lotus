@@ -295,7 +295,7 @@ func MakeInitialStateTree(ctx context.Context, bs bstore.Blockstore, template ge
 	totalFil := big.Mul(big.NewInt(int64(build.FilBase)), big.NewInt(int64(build.FilecoinPrecision)))
 	remainingFil := big.Sub(totalFil, totalFilAllocated)
 	if remainingFil.Sign() < 0 {
-		return nil, nil, xerrors.Errorf("somehow overallocated filecoin (allocated = %s)", types.FIL(totalFilAllocated))
+		return nil, nil, xerrors.Errorf("somehow overallocated filestar (allocated = %s)", types.FIL(totalFilAllocated))
 	}
 
 	template.RemainderAccount.Balance = remainingFil
@@ -523,7 +523,7 @@ func MakeGenesisBlock(ctx context.Context, j journal.Journal, bs bstore.Blocksto
 
 	filecoinGenesisCid, err := cid.Decode("bafyreiaqpwbbyjo4a42saasj36kkrpv4tsherf2e7bvezkert2a7dhonoi")
 	if err != nil {
-		return nil, xerrors.Errorf("failed to decode filecoin genesis block CID: %w", err)
+		return nil, xerrors.Errorf("failed to decode filestar genesis block CID: %w", err)
 	}
 
 	if !expectedCid().Equals(filecoinGenesisCid) {
@@ -532,7 +532,7 @@ func MakeGenesisBlock(ctx context.Context, j journal.Journal, bs bstore.Blocksto
 
 	gblk, err := getGenesisBlock()
 	if err != nil {
-		return nil, xerrors.Errorf("failed to construct filecoin genesis block: %w", err)
+		return nil, xerrors.Errorf("failed to construct filestar genesis block: %w", err)
 	}
 
 	if !filecoinGenesisCid.Equals(gblk.Cid()) {
@@ -540,7 +540,7 @@ func MakeGenesisBlock(ctx context.Context, j journal.Journal, bs bstore.Blocksto
 	}
 
 	if err := bs.Put(gblk); err != nil {
-		return nil, xerrors.Errorf("failed writing filecoin genesis block to blockstore: %w", err)
+		return nil, xerrors.Errorf("failed writing filestar genesis block to blockstore: %w", err)
 	}
 
 	b := &types.BlockHeader{

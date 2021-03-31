@@ -14,11 +14,11 @@
   <br>
 </p>
 
-Lotus is an implementation of the Filecoin Distributed Storage Network. For more details about Filecoin, check out the [Filecoin Spec](https://spec.filecoin.io).
+Lotus is an implementation of the Filestar Distributed Storage Network. For more details about Filestar, check out the [Filestar Website](https://filestar.net/).
 
 ## Building & Documentation
 
-For instructions on how to build, install and setup lotus, please visit [https://docs.filecoin.io/get-started/lotus](https://docs.filecoin.io/get-started/lotus/) and [https://github.com/filestar-project/docs/wiki](https://github.com/filestar-project/docs/wiki).
+For instructions on how to build, install and setup lotus, please visit [https://github.com/filestar-project/docs/wiki](https://github.com/filestar-project/docs/wiki).
 
 ## Reporting a Vulnerability
 
@@ -32,7 +32,7 @@ The main branches under development at the moment are:
 
 ### Packages
 
-The lotus Filecoin implementation unfolds into the following packages:
+The lotus Filestar implementation unfolds into the following packages:
 
 - [This repo](https://github.com/filestar-project/lotus)
 - [go-fil-markets](https://github.com/filecoin-project/go-fil-markets) which has its own [kanban work tracker available here](https://app.zenhub.com/workspaces/markets-shared-components-5daa144a7046a60001c6e253/board)

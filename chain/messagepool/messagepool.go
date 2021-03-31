@@ -64,7 +64,7 @@ var DefaultMaxFee = abi.TokenAmount(types.MustParseFIL("0.007"))
 var (
 	ErrMessageTooBig = errors.New("message too big")
 
-	ErrMessageValueTooHigh = errors.New("cannot send more filecoin than will ever exist")
+	ErrMessageValueTooHigh = errors.New("cannot send more filestar than will ever exist")
 
 	ErrNonceTooLow = errors.New("message nonce too low")
 

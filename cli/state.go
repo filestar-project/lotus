@@ -43,7 +43,7 @@ import (
 
 var stateCmd = &cli.Command{
 	Name:  "state",
-	Usage: "Interact with and query filecoin chain state",
+	Usage: "Interact with and query filestar chain state",
 	Flags: []cli.Flag{
 		&cli.StringFlag{
 			Name:  "tipset",

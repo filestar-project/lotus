@@ -38,7 +38,7 @@ import (
 
 var chainCmd = &cli.Command{
 	Name:  "chain",
-	Usage: "Interact with filecoin blockchain",
+	Usage: "Interact with filestar blockchain",
 	Subcommands: []*cli.Command{
 		chainHeadCmd,
 		chainGetBlock,
