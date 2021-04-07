@@ -1,8 +1,4 @@
-// +build !debug
-// +build !2k
-// +build !8g
-// +build !testground
-// +build !testnet
+// +build debug testnet
 
 package build
 
@@ -40,7 +36,7 @@ const UpgradeLiftoffHeight = 2
 
 const UpgradeKumquatHeight = 3
 
-const Upgrade8GiBSectorHeight = 184560
+const Upgrade8GiBSectorHeight = 4
 
 func init() {
 	policy.SetConsensusMinerMinPower(abi.NewStoragePower(32 << 30))
@@ -49,15 +45,14 @@ func init() {
 		abi.RegisteredSealProof_StackedDrg64GiBV1,
 	)
 
-	if os.Getenv("LOTUS_USE_TEST_ADDRESSES") != "1" {
-		SetAddressNetwork(address.Mainnet)
-	}
+	SetAddressNetwork(address.Testnet)
 
 	if os.Getenv("LOTUS_DISABLE_V2_ACTOR_MIGRATION") == "1" {
 		UpgradeActorsV2Height = math.MaxInt64
 	}
 
-	Devnet = false
+	Devnet = true
+	BuildType |= BuildTestnet
 }
 
 const BlockDelaySecs = uint64(builtin2.EpochDurationSeconds)
