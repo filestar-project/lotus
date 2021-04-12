@@ -195,11 +195,11 @@ func libp2p() Option {
 		Override(BaseRoutingKey, lp2p.BaseRouting),
 		Override(new(routing.Routing), lp2p.Routing),
 
-		//Override(NatPortMapKey, lp2p.NatPortMap),
+		Override(NatPortMapKey, lp2p.NatPortMap),
 		Override(BandwidthReporterKey, lp2p.BandwidthCounter),
 
 		Override(ConnectionManagerKey, lp2p.ConnectionManager(50, 200, 20*time.Second, nil)),
-		//Override(AutoNATSvcKey, lp2p.AutoNATService),
+		Override(AutoNATSvcKey, lp2p.AutoNATService),
 
 		Override(new(*dtypes.ScoreKeeper), lp2p.ScoreKeeper),
 		Override(new(*pubsub.PubSub), lp2p.GossipSub),
