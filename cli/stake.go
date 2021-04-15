@@ -239,6 +239,13 @@ var stakeDepositCmd = &cli.Command{
 		if err != nil {
 			return ShowHelp(cctx, fmt.Errorf("failed to parse amount: %w", err))
 		}
+		si, err := api.StateStakeInfo(ctx, types.EmptyTSK)
+		if err != nil {
+			return err
+		}
+		if abi.TokenAmount(val).LessThan(si.MinDepositAmount) {
+			return ShowHelp(cctx, fmt.Errorf("amount to deposit less than %s", types.FIL(si.MinDepositAmount)))
+		}
 
 		var fromAddr address.Address
 		if from := cctx.String("from"); from == "" {
