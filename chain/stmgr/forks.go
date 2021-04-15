@@ -692,6 +692,15 @@ func UpgradeStake(ctx context.Context, sm *StateManager, cb ExecCallback, root c
 		return cid.Undef, xerrors.Errorf("setting stake actor: %w", err)
 	}
 
+	subcalls := make([]types.ExecutionTrace, 0)
+	transferCb := func(trace types.ExecutionTrace) {
+		subcalls = append(subcalls, trace)
+	}
+	initialStakeBalance := types.BigMul(abi.NewTokenAmount(250_000_000), abi.NewTokenAmount(int64(build.FilecoinPrecision)))
+	if err = doTransfer(tree, builtin2.RewardActorAddr, builtin2.StakeActorAddr, initialStakeBalance, transferCb); err != nil {
+		return cid.Undef, xerrors.Errorf("failed transfer balance: %w", err)
+	}
+
 	cronActor, err := tree.GetActor(builtin2.CronActorAddr)
 	if err != nil {
 		return cid.Undef, xerrors.Errorf("getting cron actor: %w", err)
@@ -717,6 +726,37 @@ func UpgradeStake(ctx context.Context, sm *StateManager, cb ExecCallback, root c
 		return cid.Undef, xerrors.Errorf("setting cron actor: %w", err)
 	}
 
+	if cb != nil {
+		// record the transfer in execution traces
+		fakeMsg := &types.Message{
+			From:  builtin.SystemActorAddr,
+			To:    builtin.SystemActorAddr,
+			Value: big.Zero(),
+			Nonce: uint64(epoch),
+		}
+		fakeRct := &types.MessageReceipt{
+			ExitCode: 0,
+			Return:   nil,
+			GasUsed:  0,
+		}
+
+		if err := cb(fakeMsg.Cid(), fakeMsg, &vm.ApplyRet{
+			MessageReceipt: *fakeRct,
+			ActorErr:       nil,
+			ExecutionTrace: types.ExecutionTrace{
+				Msg:        fakeMsg,
+				MsgRct:     fakeRct,
+				Error:      "",
+				Duration:   0,
+				GasCharges: nil,
+				Subcalls:   subcalls,
+			},
+			Duration: 0,
+			GasCosts: nil,
+		}); err != nil {
+			return cid.Undef, xerrors.Errorf("recording transfers: %w", err)
+		}
+	}
 	return tree.Flush(ctx)
 }
 

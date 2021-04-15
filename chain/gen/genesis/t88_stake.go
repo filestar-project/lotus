@@ -5,7 +5,6 @@ import (
 	"github.com/filecoin-project/go-address"
 	"github.com/filecoin-project/go-state-types/abi"
 	"github.com/filecoin-project/go-state-types/big"
-	"github.com/filecoin-project/lotus/build"
 	"github.com/filecoin-project/lotus/chain/types"
 	bstore "github.com/filecoin-project/lotus/lib/blockstore"
 	"github.com/filecoin-project/specs-actors/v2/actors/builtin"
@@ -57,6 +56,6 @@ func SetupStakeActor(bs bstore.Blockstore, firstRoundEpoch abi.ChainEpoch) (*typ
 	return &types.Actor{
 		Code:    builtin.StakeActorCodeID,
 		Head:    stcid,
-		Balance: types.BigInt{Int: build.InitialStakeBalance},
+		Balance: types.NewInt(0),
 	}, nil
 }
