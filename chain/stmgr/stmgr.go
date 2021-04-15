@@ -34,6 +34,7 @@ import (
 	"github.com/filecoin-project/lotus/chain/actors/builtin/paych"
 	"github.com/filecoin-project/lotus/chain/actors/builtin/power"
 	"github.com/filecoin-project/lotus/chain/actors/builtin/reward"
+	"github.com/filecoin-project/lotus/chain/actors/builtin/stake"
 	"github.com/filecoin-project/lotus/chain/actors/builtin/verifreg"
 	"github.com/filecoin-project/lotus/chain/state"
 	"github.com/filecoin-project/lotus/chain/store"
@@ -1377,7 +1378,8 @@ func (sm *StateManager) GetCirculatingSupply(ctx context.Context, height abi.Cha
 			a == builtin.CronActorAddr ||
 			a == builtin.BurntFundsActorAddr ||
 			a == builtin.SaftAddress ||
-			a == builtin.ReserveAddress:
+			a == builtin.ReserveAddress ||
+			a == stake.Address:
 
 			unCirc = big.Add(unCirc, actor.Balance)
 
