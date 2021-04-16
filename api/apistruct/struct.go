@@ -256,7 +256,8 @@ type FullNodeStruct struct {
 		PaychVoucherList            func(context.Context, address.Address) ([]*paych.SignedVoucher, error)                                    `perm:"write"`
 		PaychVoucherSubmit          func(context.Context, address.Address, *paych.SignedVoucher, []byte, []byte) (cid.Cid, error)             `perm:"sign"`
 
-		CreateBackup func(ctx context.Context, fpath string) error `perm:"admin"`
+		CreateBackup  func(ctx context.Context, fpath string) error                                                                      `perm:"admin"`
+		CheckProvable func(ctx context.Context, pp abi.RegisteredPoStProof, sectors []abi.SectorID) (map[abi.SectorNumber]string, error) `perm:"admin"`
 	}
 }
 
@@ -339,6 +340,8 @@ type StorageMinerStruct struct {
 		PiecesGetCIDInfo   func(ctx context.Context, payloadCid cid.Cid) (*piecestore.CIDInfo, error) `perm:"read"`
 
 		CreateBackup func(ctx context.Context, fpath string) error `perm:"admin"`
+
+		CheckProvable func(ctx context.Context, pp abi.RegisteredPoStProof, sectors []abi.SectorID) (map[abi.SectorNumber]string, error) `perm:"admin"`
 	}
 }
 
@@ -1142,6 +1145,10 @@ func (c *FullNodeStruct) PaychVoucherSubmit(ctx context.Context, ch address.Addr
 
 func (c *FullNodeStruct) CreateBackup(ctx context.Context, fpath string) error {
 	return c.Internal.CreateBackup(ctx, fpath)
+}
+
+func (c *StorageMinerStruct) CheckProvable(ctx context.Context, pp abi.RegisteredPoStProof, sectors []abi.SectorID) (map[abi.SectorNumber]string, error) {
+	return c.Internal.CheckProvable(ctx, pp, sectors)
 }
 
 // StorageMinerStruct
