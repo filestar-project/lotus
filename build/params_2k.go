@@ -26,6 +26,8 @@ const UpgradeKumquatHeight = -6
 
 const Upgrade8GiBSectorHeight = -7
 
+const UpgradeStakeHeight = 12
+
 var DrandSchedule = map[abi.ChainEpoch]DrandEnum{
 	0: DrandMainnet,
 }
