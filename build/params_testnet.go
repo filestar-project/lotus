@@ -38,7 +38,7 @@ const UpgradeKumquatHeight = 3
 
 const Upgrade8GiBSectorHeight = 4
 
-const UpgradeStakeHeight = 20840
+const UpgradeStakeHeight = 2880 * 3
 
 func init() {
 	policy.SetConsensusMinerMinPower(abi.NewStoragePower(32 << 30))
