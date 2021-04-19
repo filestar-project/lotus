@@ -1,4 +1,4 @@
-// +build debug testnet
+// +build testnet
 
 package build
 
@@ -53,7 +53,7 @@ func init() {
 		UpgradeActorsV2Height = math.MaxInt64
 	}
 
-	Devnet = true
+	Devnet = false
 	BuildType |= BuildTestnet
 }
 
