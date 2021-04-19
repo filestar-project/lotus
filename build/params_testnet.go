@@ -38,6 +38,8 @@ const UpgradeKumquatHeight = 3
 
 const Upgrade8GiBSectorHeight = 4
 
+const UpgradeStakeHeight = 20840
+
 func init() {
 	policy.SetConsensusMinerMinPower(abi.NewStoragePower(32 << 30))
 	policy.SetSupportedProofTypes(
