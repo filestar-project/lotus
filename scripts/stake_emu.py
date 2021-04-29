@@ -11,6 +11,7 @@ class RunTime(object):
     def __init__(self):
         self.epoch = 0
         self.caller = ""
+        self.amount = 0
 
 
 class VestingSpec(object):
@@ -38,17 +39,19 @@ class StakeActor(object):
         self.available_reward_map = defaultdict(int)
         self.stake_power_map = defaultdict(int)
 
-    def deposit(self, rt: RunTime, amount: int):
-        self.locked_principal_map[rt.caller].append((rt.epoch, amount))
+    def deposit(self, rt: RunTime):
+        self.locked_principal_map[rt.caller].append((rt.epoch, rt.amount))
 
-    def withdraw_principal(self, rt: RunTime, amount: int):
+    def withdraw_principal(self, rt: RunTime):
+        amount = rt.amount
         avail = self.available_principal_map[rt.caller]
         if amount <= avail:
             self.available_principal_map[rt.caller] -= amount
         else:
             print("!:", rt.epoch, "error withdraw_principal more than available")
 
-    def withdraw_reward(self, rt: RunTime, amount: int):
+    def withdraw_reward(self, rt: RunTime):
+        amount = rt.amount
         avail = self.available_principal_map[rt.caller]
         if amount <= avail:
             self.available_principal_map[rt.caller] -= amount
@@ -150,9 +153,10 @@ class StakeActor(object):
 
 
 class Message(object):
-    def __init__(self, epoch: int, sender: str, func):
+    def __init__(self, epoch: int, sender: str, amount: int, func):
         self.epoch = epoch
         self.sender = sender
+        self.amount = amount
         self.func = func
 
 
@@ -170,8 +174,10 @@ class VM(object):
             rt.epoch = epoch
             for msg in message_map[epoch]:
                 rt.caller = msg.sender
+                rt.amount = msg.amount
                 msg.func(rt, self.stake_actor)
             rt.caller = "system"
+            rt.amount = 0
             self.stake_actor.on_epoch_tick(rt)
 
 
@@ -187,7 +193,8 @@ def run():
     )
     vm = VM(stake_actor)
     messages = []
-    messages.append(Message(epoch=19, sender="t001", func=lambda rt, actor: actor.deposit(rt, 10000*FIL_PRECISION)))
+    for i in range(10):
+        messages.append(Message(epoch=i, sender="t001", amount=i, func=lambda rt, actor: actor.deposit(rt)))
     vm.exec(messages, stop_at=44)
     print("locked_principal_map", stake_actor.locked_principal_map)
     print("available_principal_map", stake_actor.available_principal_map)
