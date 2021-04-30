@@ -522,4 +522,18 @@ func (sm *StorageMinerAPI) CreateBackup(ctx context.Context, fpath string) error
 	return backup(sm.DS, fpath)
 }
 
+func (sm *StorageMinerAPI) CheckProvable(ctx context.Context, pp abi.RegisteredPoStProof, sectors []abi.SectorID) (map[abi.SectorNumber]string, error) {
+	bad, err := sm.StorageMgr.CheckProvable(ctx, pp, sectors)
+	if err != nil {
+		return nil, err
+	}
+
+	var out = make(map[abi.SectorNumber]string)
+	for sid, err := range bad {
+		out[sid.Number] = err
+	}
+
+	return out, nil
+}
+
 var _ api.StorageMiner = &StorageMinerAPI{}
