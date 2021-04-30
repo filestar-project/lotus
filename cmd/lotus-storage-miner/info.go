@@ -273,6 +273,40 @@ func init() {
 	}
 }
 
+var listVestingCmd = &cli.Command{
+	Name:  "list-vesting",
+	Usage: "Print miner vesting funds",
+	Action: func(cctx *cli.Context) error {
+		nodeApi, closer, err := lcli.GetStorageMinerAPI(cctx)
+		if err != nil {
+			return err
+		}
+		defer closer()
+
+		api, acloser, err := lcli.GetFullNodeAPI(cctx)
+		if err != nil {
+			return err
+		}
+		defer acloser()
+
+		ctx := lcli.ReqContext(cctx)
+
+		maddr, err := getActorAddress(ctx, nodeApi, cctx.String("actor"))
+		if err != nil {
+			return err
+		}
+
+		vfs, err := api.StateMinerVestingFunds(ctx, maddr, types.EmptyTSK)
+		if err != nil {
+			return err
+		}
+		for _, value := range vfs.Funds {
+			fmt.Printf("Epoch: %d\tAmount: %s\n", value.Epoch, types.FIL(value.Amount))
+		}
+		return nil
+	},
+}
+
 func sectorsInfo(ctx context.Context, napi api.StorageMiner) error {
 	sectors, err := napi.SectorsList(ctx)
 	if err != nil {
