@@ -39,7 +39,7 @@ func SetupStakeActor(bs bstore.Blockstore, firstRoundEpoch abi.ChainEpoch) (*typ
 		PrincipalLockDuration: abi.ChainEpoch(90 * builtin.EpochsInDay),
 		FirstRoundEpoch:       firstRoundEpoch,
 		MinDepositAmount:      abi.TokenAmount(types.MustParseFIL("100 STAR")),
-		MaxRewardPerRound:     abi.TokenAmount(types.MustParseFIL("10000 STAR")),
+		MaxRewardPerRound:     abi.TokenAmount(types.MustParseFIL("30000 STAR")),
 		InflationFactor:       big.NewInt(100),
 	}
 	// max_reward_per_round = Min(
