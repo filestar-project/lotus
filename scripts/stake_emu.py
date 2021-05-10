@@ -11,12 +11,69 @@ class RunTime(object):
     def __init__(self):
         self.epoch = 0
         self.caller = ""
+        self.amount = 0
 
 
 class VestingSpec(object):
     def __init__(self, vest_period, step_duration):
         self.step_duration = step_duration
         self.vest_period = vest_period
+        self.initial_delay = 0
+        self.quantization = 12 * EpochsInHour
+
+
+class VestingFunds(object):
+    def __init__(self):
+        self.funds = []
+
+    def unlock_vested_funds(self, curr_epoch):
+        unlocked = 0
+        last_index_to_rm = -1
+        for i, (epoch, amount) in enumerate(self.funds):
+            if epoch >= curr_epoch:
+                break
+            unlocked += amount
+            last_index_to_rm = i
+        if last_index_to_rm != -1:
+            self.funds = self.funds[last_index_to_rm+1:]
+        return unlocked
+
+    def quantize_up(self, e, unit, offset_seed):
+        offset = offset_seed % unit
+        remainder = (e - offset) % unit
+        quotient = (e - offset) // unit
+        if remainder == 0:
+            return unit * quotient + offset
+        if (e - offset) < 0:
+            return unit * quotient + offset
+        return unit * (quotient + 1) + offset
+
+    def add_locked_funds(self, curr_epoch, vesting_sum, stake_period_start, vest_spec: VestingSpec):
+        epoch_to_index = {}
+        for i, (epoch, amount) in enumerate(self.funds):
+            epoch_to_index[epoch] = i
+        vest_begin = curr_epoch + vest_spec.initial_delay
+        vested_so_far = 0
+        e = vest_begin + vest_spec.step_duration
+        while vested_so_far < vesting_sum:
+            vest_epoch = self.quantize_up(e, vest_spec.quantization, stake_period_start)
+            elapsed = vest_epoch - vest_begin
+            if elapsed < vest_spec.vest_period:
+                target_vest = vesting_sum * elapsed // vest_spec.vest_period
+            else:
+                target_vest = vesting_sum
+            vest_this_time = target_vest - vested_so_far
+            vested_so_far = target_vest
+
+            if vest_epoch in epoch_to_index:
+                index = epoch_to_index[vest_epoch]
+                epoch, amount = self.funds[index]
+                self.funds[index] = (epoch, amount+vest_this_time)
+            else:
+                self.funds.append((vest_epoch, vest_this_time))
+                epoch_to_index[vest_epoch] = len(self.funds) - 1
+            e += vest_spec.step_duration
+        self.funds = sorted(self.funds, key=lambda x: x[0])
 
 
 class StakeActor(object):
@@ -27,6 +84,7 @@ class StakeActor(object):
         self.mature_period = mature_period
         self.max_reward_per_round = max_reward_per_round
         self.inflation_factor = inflation_factor
+        self.stake_period_start = next_round_epoch
         self.next_round_epoch = next_round_epoch
         self.vest_spec = vest_spec
         self.total_stake_power = 0
@@ -34,21 +92,23 @@ class StakeActor(object):
         self.inflation_denominator = 10000
         self.locked_principal_map = defaultdict(list)
         self.available_principal_map = defaultdict(int)
-        self.vesting_reward_map = defaultdict(list)
+        self.vesting_reward_map = defaultdict(VestingFunds)
         self.available_reward_map = defaultdict(int)
         self.stake_power_map = defaultdict(int)
 
-    def deposit(self, rt: RunTime, amount: int):
-        self.locked_principal_map[rt.caller].append((rt.epoch, amount))
+    def deposit(self, rt: RunTime):
+        self.locked_principal_map[rt.caller].append((rt.epoch, rt.amount))
 
-    def withdraw_principal(self, rt: RunTime, amount: int):
+    def withdraw_principal(self, rt: RunTime):
+        amount = rt.amount
         avail = self.available_principal_map[rt.caller]
         if amount <= avail:
             self.available_principal_map[rt.caller] -= amount
         else:
             print("!:", rt.epoch, "error withdraw_principal more than available")
 
-    def withdraw_reward(self, rt: RunTime, amount: int):
+    def withdraw_reward(self, rt: RunTime):
+        amount = rt.amount
         avail = self.available_principal_map[rt.caller]
         if amount <= avail:
             self.available_principal_map[rt.caller] -= amount
@@ -87,16 +147,9 @@ class StakeActor(object):
 
     def unlock_vesting_rewards(self, rt: RunTime):
         for staker, vesting_funds in self.vesting_reward_map.items():
-            unlocked = 0
-            last_index_to_rm = -1
-            for i, (epoch, amount) in enumerate(vesting_funds):
-                if epoch >= rt.epoch:
-                    break
-                unlocked += amount
-                last_index_to_rm = i
-            if last_index_to_rm != -1:
-                self.vesting_reward_map[staker] = vesting_funds[last_index_to_rm+1:]
-                self.available_reward_map[staker] += unlocked
+            unlocked = vesting_funds.unlock_vested_funds(rt.epoch)
+            self.vesting_reward_map[staker] = vesting_funds
+            self.available_reward_map[staker] += unlocked
 
     def distribute_rewards(self, rt: RunTime) -> int:
         assert rt.epoch >= self.next_round_epoch
@@ -110,34 +163,8 @@ class StakeActor(object):
                 for staker, power in self.stake_power_map.items():
                     vesting_sum = power * total_reward // self.total_stake_power
                     if vesting_sum > 0:
-                        epoch_to_index = {}
-                        for i, (epoch, amount) in enumerate(self.vesting_reward_map[staker]):
-                            epoch_to_index[epoch] = i
-                        vest_begin = rt.epoch
-                        vested_so_far = 0
-                        e = vest_begin + vest_spec.step_duration
-                        while vested_so_far < vesting_sum:
-                            vest_epoch = e
-                            elapsed = vest_epoch - vest_begin
-                            if elapsed < vest_spec.vest_period:
-                                target_vest = vesting_sum * elapsed // vest_spec.vest_period
-                            else:
-                                target_vest = vesting_sum
-                            vest_this_time = target_vest - vested_so_far
-                            vested_so_far = target_vest
-
-                            if vest_epoch in epoch_to_index:
-                                index = epoch_to_index[vest_epoch]
-                                epoch, amount = self.vesting_reward_map[staker][index]
-                                self.vesting_reward_map[staker][index] = (epoch, amount+vest_this_time)
-                            else:
-                                self.vesting_reward_map[staker].append((vest_epoch, vest_this_time))
-                                epoch_to_index[vest_epoch] = len(self.vesting_reward_map[staker]) - 1
-                            e += vest_spec.step_duration
-                        funds = sorted(self.vesting_reward_map[staker], key=lambda x: x[0])
-                        self.vesting_reward_map[staker] = funds
-
-        print(f"distribute rewards {total_reward} at {rt.epoch}")
+                        vesting_funds = self.vesting_reward_map[staker]
+                        vesting_funds.add_locked_funds(rt.epoch, vesting_sum, self.stake_period_start, vest_spec)
         return total_reward
 
     def on_epoch_tick(self, rt: RunTime):
@@ -150,9 +177,10 @@ class StakeActor(object):
 
 
 class Message(object):
-    def __init__(self, epoch: int, sender: str, func):
+    def __init__(self, epoch: int, sender: str, amount: int, func):
         self.epoch = epoch
         self.sender = sender
+        self.amount = amount
         self.func = func
 
 
@@ -170,30 +198,32 @@ class VM(object):
             rt.epoch = epoch
             for msg in message_map[epoch]:
                 rt.caller = msg.sender
+                rt.amount = msg.amount
                 msg.func(rt, self.stake_actor)
             rt.caller = "system"
+            rt.amount = 0
             self.stake_actor.on_epoch_tick(rt)
 
 
 def run():
     stake_actor = StakeActor(
-        round_period=15,
-        principal_lock_duration=90*EpochsInDay,
-        mature_period=10,
-        max_reward_per_round=10000*FIL_PRECISION,
+        round_period=10,
+        principal_lock_duration=1,
+        mature_period=1,
+        max_reward_per_round=30000*FIL_PRECISION,
         inflation_factor=100,
         next_round_epoch=13,
         vest_spec=VestingSpec(180*EpochsInDay, EpochsInDay)
     )
     vm = VM(stake_actor)
     messages = []
-    messages.append(Message(epoch=19, sender="t001", func=lambda rt, actor: actor.deposit(rt, 10000*FIL_PRECISION)))
-    vm.exec(messages, stop_at=44)
+    messages.append(Message(epoch=14, sender="t001", amount=10000*FIL_PRECISION, func=lambda rt, actor: actor.deposit(rt)))
+    vm.exec(messages, stop_at=25)
     print("locked_principal_map", stake_actor.locked_principal_map)
     print("available_principal_map", stake_actor.available_principal_map)
     print("stake_power_map", stake_actor.stake_power_map)
     print("total_stake_power", stake_actor.total_stake_power)
-    print("vesting_reward_map", stake_actor.vesting_reward_map)
+    print("vesting_reward_map", stake_actor.vesting_reward_map["t001"].funds)
 
 
 if __name__ == "__main__":

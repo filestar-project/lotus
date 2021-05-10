@@ -68,7 +68,6 @@ var Devnet = true
 
 const FilBase = uint64(2_000_000_000)
 const FilAllocStorageMining = uint64(1_100_000_000)
-const FilAllocStakeMining = uint64(100_000_000) // 暂定1亿吧，能从storage里挪过来最好
 
 const FilecoinPrecision = uint64(1_000_000_000_000_000_000)
 const FilReserved = uint64(300_000_000)

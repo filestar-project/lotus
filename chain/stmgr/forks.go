@@ -696,7 +696,7 @@ func UpgradeStake(ctx context.Context, sm *StateManager, cb ExecCallback, root c
 	transferCb := func(trace types.ExecutionTrace) {
 		subcalls = append(subcalls, trace)
 	}
-	initialStakeBalance := types.BigMul(abi.NewTokenAmount(250_000_000), abi.NewTokenAmount(int64(build.FilecoinPrecision)))
+	initialStakeBalance := types.BigMul(abi.NewTokenAmount(300_000_000), abi.NewTokenAmount(int64(build.FilecoinPrecision)))
 	if err = doTransfer(tree, builtin2.RewardActorAddr, builtin2.StakeActorAddr, initialStakeBalance, transferCb); err != nil {
 		return cid.Undef, xerrors.Errorf("failed transfer balance: %w", err)
 	}

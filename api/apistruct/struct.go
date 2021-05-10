@@ -189,6 +189,7 @@ type FullNodeStruct struct {
 		StateMinerPreCommitDepositForPower func(context.Context, address.Address, miner.SectorPreCommitInfo, types.TipSetKey) (types.BigInt, error)            `perm:"read"`
 		StateMinerInitialPledgeCollateral  func(context.Context, address.Address, miner.SectorPreCommitInfo, types.TipSetKey) (types.BigInt, error)            `perm:"read"`
 		StateMinerAvailableBalance         func(context.Context, address.Address, types.TipSetKey) (types.BigInt, error)                                       `perm:"read"`
+		StateMinerVestingFunds             func(context.Context, address.Address, types.TipSetKey) (*miner.VestingFunds, error)                                `perm:"read"`
 		StateSectorPreCommitInfo           func(context.Context, address.Address, abi.SectorNumber, types.TipSetKey) (miner.SectorPreCommitOnChainInfo, error) `perm:"read"`
 		StateSectorGetInfo                 func(context.Context, address.Address, abi.SectorNumber, types.TipSetKey) (*miner.SectorOnChainInfo, error)         `perm:"read"`
 		StateSectorExpiration              func(context.Context, address.Address, abi.SectorNumber, types.TipSetKey) (*miner.SectorExpiration, error)          `perm:"read"`
@@ -266,7 +267,8 @@ type FullNodeStruct struct {
 		PaychVoucherList            func(context.Context, address.Address) ([]*paych.SignedVoucher, error)                                    `perm:"write"`
 		PaychVoucherSubmit          func(context.Context, address.Address, *paych.SignedVoucher, []byte, []byte) (cid.Cid, error)             `perm:"sign"`
 
-		CreateBackup func(ctx context.Context, fpath string) error `perm:"admin"`
+		CreateBackup  func(ctx context.Context, fpath string) error                                                                      `perm:"admin"`
+		CheckProvable func(ctx context.Context, pp abi.RegisteredPoStProof, sectors []abi.SectorID) (map[abi.SectorNumber]string, error) `perm:"admin"`
 	}
 }
 
@@ -349,6 +351,8 @@ type StorageMinerStruct struct {
 		PiecesGetCIDInfo   func(ctx context.Context, payloadCid cid.Cid) (*piecestore.CIDInfo, error) `perm:"read"`
 
 		CreateBackup func(ctx context.Context, fpath string) error `perm:"admin"`
+
+		CheckProvable func(ctx context.Context, pp abi.RegisteredPoStProof, sectors []abi.SectorID) (map[abi.SectorNumber]string, error) `perm:"admin"`
 	}
 }
 
@@ -902,6 +906,10 @@ func (c *FullNodeStruct) StateMinerAvailableBalance(ctx context.Context, maddr a
 	return c.Internal.StateMinerAvailableBalance(ctx, maddr, tsk)
 }
 
+func (c *FullNodeStruct) StateMinerVestingFunds(ctx context.Context, maddr address.Address, tsk types.TipSetKey) (*miner.VestingFunds, error) {
+	return c.Internal.StateMinerVestingFunds(ctx, maddr, tsk)
+}
+
 func (c *FullNodeStruct) StateSectorPreCommitInfo(ctx context.Context, maddr address.Address, n abi.SectorNumber, tsk types.TipSetKey) (miner.SectorPreCommitOnChainInfo, error) {
 	return c.Internal.StateSectorPreCommitInfo(ctx, maddr, n, tsk)
 }
@@ -1184,6 +1192,10 @@ func (c *FullNodeStruct) PaychVoucherSubmit(ctx context.Context, ch address.Addr
 
 func (c *FullNodeStruct) CreateBackup(ctx context.Context, fpath string) error {
 	return c.Internal.CreateBackup(ctx, fpath)
+}
+
+func (c *StorageMinerStruct) CheckProvable(ctx context.Context, pp abi.RegisteredPoStProof, sectors []abi.SectorID) (map[abi.SectorNumber]string, error) {
+	return c.Internal.CheckProvable(ctx, pp, sectors)
 }
 
 // StorageMinerStruct
