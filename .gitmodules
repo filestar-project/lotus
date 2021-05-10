@@ -11,4 +11,4 @@
 [submodule "extern/specs-actors"]
 	path = extern/specs-actors
 	url = https://github.com/filestar-project/specs-actors.git
-	branch = support-8G-sector
+	branch = master

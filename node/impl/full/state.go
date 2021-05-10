@@ -3,6 +3,7 @@ package full
 import (
 	"bytes"
 	"context"
+	"github.com/filecoin-project/lotus/chain/actors/builtin/stake"
 	"strconv"
 
 	cid "github.com/ipfs/go-cid"
@@ -1335,4 +1336,100 @@ func (m *StateModule) StateNetworkVersion(ctx context.Context, tsk types.TipSetK
 	}
 
 	return m.StateManager.GetNtwkVersion(ctx, ts.Height()), nil
+}
+
+func (a *StateAPI) StateStakeInfo(ctx context.Context, tsk types.TipSetKey) (*stake.StakeInfo, error) {
+	sact, err := a.StateGetActor(ctx, stake.Address, tsk)
+	if err != nil {
+		return nil, err
+	}
+	st, err := stake.Load(a.StateManager.ChainStore().Store(ctx), sact)
+	if err != nil {
+		return nil, err
+	}
+	return st.GetInfo()
+}
+
+func (a *StateAPI) StateStakerPower(ctx context.Context, addr address.Address, tsk types.TipSetKey) (abi.StakePower, error) {
+	sact, err := a.StateGetActor(ctx, stake.Address, tsk)
+	if err != nil {
+		return big.Zero(), err
+	}
+	st, err := stake.Load(a.StateManager.ChainStore().Store(ctx), sact)
+	if err != nil {
+		return big.Zero(), err
+	}
+	return st.StakerPower(addr)
+}
+
+func (a *StateAPI) StateStakerLockedPrincipalList(ctx context.Context, addr address.Address, tsk types.TipSetKey) ([]stake.LockedPrincipal, error) {
+	sact, err := a.StateGetActor(ctx, stake.Address, tsk)
+	if err != nil {
+		return nil, err
+	}
+	st, err := stake.Load(a.StateManager.ChainStore().Store(ctx), sact)
+	if err != nil {
+		return nil, err
+	}
+	return st.StakerLockedPrincipalList(addr)
+}
+
+func (a *StateAPI) StateStakerLockedPrincipal(ctx context.Context, addr address.Address, tsk types.TipSetKey) (abi.TokenAmount, error) {
+	sact, err := a.StateGetActor(ctx, stake.Address, tsk)
+	if err != nil {
+		return big.Zero(), err
+	}
+	st, err := stake.Load(a.StateManager.ChainStore().Store(ctx), sact)
+	if err != nil {
+		return big.Zero(), err
+	}
+	return st.StakerLockedPrincipal(addr)
+}
+
+func (a *StateAPI) StateStakerAvailablePrincipal(ctx context.Context, addr address.Address, tsk types.TipSetKey) (abi.TokenAmount, error) {
+	sact, err := a.StateGetActor(ctx, stake.Address, tsk)
+	if err != nil {
+		return big.Zero(), err
+	}
+	st, err := stake.Load(a.StateManager.ChainStore().Store(ctx), sact)
+	if err != nil {
+		return big.Zero(), err
+	}
+	return st.StakerAvailablePrincipal(addr)
+}
+
+func (a *StateAPI) StateStakerVestingRewardList(ctx context.Context, addr address.Address, tsk types.TipSetKey) ([]stake.VestingFund, error) {
+	sact, err := a.StateGetActor(ctx, stake.Address, tsk)
+	if err != nil {
+		return nil, err
+	}
+	st, err := stake.Load(a.StateManager.ChainStore().Store(ctx), sact)
+	if err != nil {
+		return nil, err
+	}
+	return st.StakerVestingRewardList(addr)
+}
+
+func (a *StateAPI) StateStakerVestingReward(ctx context.Context, addr address.Address, tsk types.TipSetKey) (abi.TokenAmount, error) {
+	sact, err := a.StateGetActor(ctx, stake.Address, tsk)
+	if err != nil {
+		return big.Zero(), err
+	}
+	st, err := stake.Load(a.StateManager.ChainStore().Store(ctx), sact)
+	if err != nil {
+		return big.Zero(), err
+	}
+	return st.StakerVestingReward(addr)
+}
+
+func (a *StateAPI) StateStakerAvailableReward(ctx context.Context, addr address.Address, tsk types.TipSetKey) (abi.TokenAmount, error) {
+	sact, err := a.StateGetActor(ctx, stake.Address, tsk)
+	if err != nil {
+		return big.Zero(), err
+	}
+	st, err := stake.Load(a.StateManager.ChainStore().Store(ctx), sact)
+	if err != nil {
+		return big.Zero(), err
+	}
+	return st.StakerAvailableReward(addr)
 }

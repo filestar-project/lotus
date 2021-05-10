@@ -2,6 +2,7 @@ package apistruct
 
 import (
 	"context"
+	"github.com/filecoin-project/lotus/chain/actors/builtin/stake"
 	"io"
 	"time"
 
@@ -220,6 +221,15 @@ type FullNodeStruct struct {
 		StateCirculatingSupply             func(context.Context, types.TipSetKey) (abi.TokenAmount, error)                                                     `perm:"read"`
 		StateVMCirculatingSupplyInternal   func(context.Context, types.TipSetKey) (api.CirculatingSupply, error)                                               `perm:"read"`
 		StateNetworkVersion                func(context.Context, types.TipSetKey) (stnetwork.Version, error)                                                   `perm:"read"`
+
+		StateStakeInfo                 func(context.Context, types.TipSetKey) (*stake.StakeInfo, error)                         `perm:"read"`
+		StateStakerPower               func(context.Context, address.Address, types.TipSetKey) (abi.StakePower, error)          `perm:"read"`
+		StateStakerLockedPrincipalList func(context.Context, address.Address, types.TipSetKey) ([]stake.LockedPrincipal, error) `perm:"read"`
+		StateStakerLockedPrincipal     func(context.Context, address.Address, types.TipSetKey) (abi.TokenAmount, error)         `perm:"read"`
+		StateStakerAvailablePrincipal  func(context.Context, address.Address, types.TipSetKey) (abi.TokenAmount, error)         `perm:"read"`
+		StateStakerVestingRewardList   func(context.Context, address.Address, types.TipSetKey) ([]stake.VestingFund, error)     `perm:"read"`
+		StateStakerVestingReward       func(context.Context, address.Address, types.TipSetKey) (abi.TokenAmount, error)         `perm:"read"`
+		StateStakerAvailableReward     func(context.Context, address.Address, types.TipSetKey) (abi.TokenAmount, error)         `perm:"read"`
 
 		MsigGetAvailableBalance func(context.Context, address.Address, types.TipSetKey) (types.BigInt, error)                                                                    `perm:"read"`
 		MsigGetVestingSchedule  func(context.Context, address.Address, types.TipSetKey) (api.MsigVesting, error)                                                                 `perm:"read"`
@@ -1018,6 +1028,38 @@ func (c *FullNodeStruct) StateVMCirculatingSupplyInternal(ctx context.Context, t
 
 func (c *FullNodeStruct) StateNetworkVersion(ctx context.Context, tsk types.TipSetKey) (stnetwork.Version, error) {
 	return c.Internal.StateNetworkVersion(ctx, tsk)
+}
+
+func (c *FullNodeStruct) StateStakeInfo(ctx context.Context, tsk types.TipSetKey) (*stake.StakeInfo, error) {
+	return c.Internal.StateStakeInfo(ctx, tsk)
+}
+
+func (c *FullNodeStruct) StateStakerPower(ctx context.Context, addr address.Address, tsk types.TipSetKey) (abi.StakePower, error) {
+	return c.Internal.StateStakerPower(ctx, addr, tsk)
+}
+
+func (c *FullNodeStruct) StateStakerLockedPrincipalList(ctx context.Context, addr address.Address, tsk types.TipSetKey) ([]stake.LockedPrincipal, error) {
+	return c.Internal.StateStakerLockedPrincipalList(ctx, addr, tsk)
+}
+
+func (c *FullNodeStruct) StateStakerLockedPrincipal(ctx context.Context, addr address.Address, tsk types.TipSetKey) (abi.TokenAmount, error) {
+	return c.Internal.StateStakerLockedPrincipal(ctx, addr, tsk)
+}
+
+func (c *FullNodeStruct) StateStakerAvailablePrincipal(ctx context.Context, addr address.Address, tsk types.TipSetKey) (abi.TokenAmount, error) {
+	return c.Internal.StateStakerAvailablePrincipal(ctx, addr, tsk)
+}
+
+func (c *FullNodeStruct) StateStakerVestingRewardList(ctx context.Context, addr address.Address, tsk types.TipSetKey) ([]stake.VestingFund, error) {
+	return c.Internal.StateStakerVestingRewardList(ctx, addr, tsk)
+}
+
+func (c *FullNodeStruct) StateStakerVestingReward(ctx context.Context, addr address.Address, tsk types.TipSetKey) (abi.TokenAmount, error) {
+	return c.Internal.StateStakerVestingReward(ctx, addr, tsk)
+}
+
+func (c *FullNodeStruct) StateStakerAvailableReward(ctx context.Context, addr address.Address, tsk types.TipSetKey) (abi.TokenAmount, error) {
+	return c.Internal.StateStakerAvailableReward(ctx, addr, tsk)
 }
 
 func (c *FullNodeStruct) MsigGetAvailableBalance(ctx context.Context, a address.Address, tsk types.TipSetKey) (types.BigInt, error) {

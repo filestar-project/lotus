@@ -108,6 +108,7 @@ const BlockMessageLimit = 10000
 
 var BlockGasLimit = int64(10_000_000_000)
 var BlockGasTarget = BlockGasLimit / 2
+
 const BaseFeeMaxChangeDenom = 8 // 12.5%
 const InitialBaseFee = 100e6
 const MinimumBaseFee = 100
