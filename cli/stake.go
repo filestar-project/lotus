@@ -406,7 +406,7 @@ var stakeWithdrawCmd = &cli.Command{
 		}
 
 		params, err := actors.SerializeParams(&stake2.WithdrawParams{
-			AmountRequested: reqAmount, // Default to attempting to withdraw all the extra funds in the miner actor
+			AmountRequested: reqAmount,
 		})
 		if err != nil {
 			return ShowHelp(cctx, fmt.Errorf("failed to serialize params: %w", err))
