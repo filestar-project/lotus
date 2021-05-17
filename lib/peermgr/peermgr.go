@@ -184,9 +184,9 @@ func (pmgr *PeerMgr) expandPeers() {
 
 func (pmgr *PeerMgr) doExpand(ctx context.Context) {
 	pcount := pmgr.getPeerCount()
-	if pcount == 0 {
+	if pcount < 3 {
 		if len(pmgr.bootstrappers) == 0 {
-			log.Warn("no peers connected, and no bootstrappers configured")
+			log.Warn("less than 3 peers connected, and no bootstrappers configured")
 			return
 		}
 
