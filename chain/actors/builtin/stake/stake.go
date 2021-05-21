@@ -1,6 +1,7 @@
 package stake
 
 import (
+	"errors"
 	"github.com/filecoin-project/go-address"
 	"github.com/filecoin-project/go-state-types/abi"
 	"github.com/filecoin-project/go-state-types/big"
@@ -24,8 +25,9 @@ func init() {
 }
 
 var (
-	Address = builtin2.StakeActorAddr
-	Methods = builtin2.MethodsStake
+	Address                    = builtin2.StakeActorAddr
+	Methods                    = builtin2.MethodsStake
+	UnsupportedAddressProtocol = errors.New("address must be ID format")
 )
 
 type State interface {
@@ -95,6 +97,9 @@ func (s *state) GetInfo() (*StakeInfo, error) {
 
 func (s *state) StakerPower(staker address.Address) (abi.StakePower, error) {
 	power := abi.NewStakePower(0)
+	if staker.Protocol() != address.ID {
+		return power, UnsupportedAddressProtocol
+	}
 	stakePowerMap, err := adt2.AsMap(s.store, s.State.StakePowerMap)
 	if err != nil {
 		return power, err
@@ -104,6 +109,9 @@ func (s *state) StakerPower(staker address.Address) (abi.StakePower, error) {
 }
 
 func (s *state) StakerLockedPrincipalList(staker address.Address) ([]LockedPrincipal, error) {
+	if staker.Protocol() != address.ID {
+		return nil, UnsupportedAddressProtocol
+	}
 	lockedPrincipalMap, err := adt2.AsMap(s.store, s.State.LockedPrincipalMap)
 	if err != nil {
 		return nil, err
@@ -117,6 +125,9 @@ func (s *state) StakerLockedPrincipalList(staker address.Address) ([]LockedPrinc
 
 func (s *state) StakerLockedPrincipal(staker address.Address) (abi.TokenAmount, error) {
 	lockedPrincipal := abi.NewTokenAmount(0)
+	if staker.Protocol() != address.ID {
+		return lockedPrincipal, UnsupportedAddressProtocol
+	}
 	list, err := s.StakerLockedPrincipalList(staker)
 	if err != nil {
 		return lockedPrincipal, err
@@ -129,6 +140,9 @@ func (s *state) StakerLockedPrincipal(staker address.Address) (abi.TokenAmount, 
 
 func (s *state) StakerAvailablePrincipal(staker address.Address) (abi.TokenAmount, error) {
 	availablePrincipal := abi.NewTokenAmount(0)
+	if staker.Protocol() != address.ID {
+		return availablePrincipal, UnsupportedAddressProtocol
+	}
 	availablePrincipalMap, err := adt2.AsMap(s.store, s.State.AvailablePrincipalMap)
 	if err != nil {
 		return availablePrincipal, err
@@ -138,6 +152,9 @@ func (s *state) StakerAvailablePrincipal(staker address.Address) (abi.TokenAmoun
 }
 
 func (s *state) StakerVestingRewardList(staker address.Address) ([]VestingFund, error) {
+	if staker.Protocol() != address.ID {
+		return nil, UnsupportedAddressProtocol
+	}
 	vestingRewardMap, err := adt2.AsMap(s.store, s.State.VestingRewardMap)
 	if err != nil {
 		return nil, err
@@ -151,6 +168,9 @@ func (s *state) StakerVestingRewardList(staker address.Address) ([]VestingFund, 
 
 func (s *state) StakerVestingReward(staker address.Address) (abi.TokenAmount, error) {
 	vestingReward := abi.NewTokenAmount(0)
+	if staker.Protocol() != address.ID {
+		return vestingReward, UnsupportedAddressProtocol
+	}
 	list, err := s.StakerVestingRewardList(staker)
 	if err != nil {
 		return vestingReward, err
@@ -163,6 +183,9 @@ func (s *state) StakerVestingReward(staker address.Address) (abi.TokenAmount, er
 
 func (s *state) StakerAvailableReward(staker address.Address) (abi.TokenAmount, error) {
 	availableReward := abi.NewTokenAmount(0)
+	if staker.Protocol() != address.ID {
+		return availableReward, UnsupportedAddressProtocol
+	}
 	availableRewardMap, err := adt2.AsMap(s.store, s.State.AvailableRewardMap)
 	if err != nil {
 		return availableReward, err
