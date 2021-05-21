@@ -78,14 +78,14 @@ class VestingFunds(object):
 
 class StakeActor(object):
 
-    def __init__(self, round_period, principal_lock_duration, mature_period, max_reward_per_round, inflation_factor, next_round_epoch, vest_spec):
+    def __init__(self, round_period, principal_lock_duration, mature_period, max_reward_per_round, inflation_factor, first_round_epoch, vest_spec):
         self.round_period = round_period
         self.principal_lock_duration = principal_lock_duration
         self.mature_period = mature_period
         self.max_reward_per_round = max_reward_per_round
         self.inflation_factor = inflation_factor
-        self.stake_period_start = next_round_epoch
-        self.next_round_epoch = next_round_epoch
+        self.stake_period_start = first_round_epoch
+        self.next_round_epoch = first_round_epoch
         self.vest_spec = vest_spec
         self.total_stake_power = 0
         self.last_round_reward = 0
@@ -207,18 +207,18 @@ class VM(object):
 
 def run():
     stake_actor = StakeActor(
-        round_period=10,
-        principal_lock_duration=1,
-        mature_period=1,
+        round_period=EpochsInDay,
+        principal_lock_duration=90*EpochsInDay,
+        mature_period=12*EpochsInHour,
         max_reward_per_round=30000*FIL_PRECISION,
         inflation_factor=100,
-        next_round_epoch=13,
+        first_round_epoch=584461,
         vest_spec=VestingSpec(180*EpochsInDay, EpochsInDay)
     )
     vm = VM(stake_actor)
     messages = []
-    messages.append(Message(epoch=14, sender="t001", amount=10000*FIL_PRECISION, func=lambda rt, actor: actor.deposit(rt)))
-    vm.exec(messages, stop_at=25)
+    messages.append(Message(epoch=584480, sender="t001", amount=10000*FIL_PRECISION, func=lambda rt, actor: actor.deposit(rt)))
+    vm.exec(messages, stop_at=608000)
     print("locked_principal_map", stake_actor.locked_principal_map)
     print("available_principal_map", stake_actor.available_principal_map)
     print("stake_power_map", stake_actor.stake_power_map)
