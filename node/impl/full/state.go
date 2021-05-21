@@ -1351,6 +1351,12 @@ func (a *StateAPI) StateStakeInfo(ctx context.Context, tsk types.TipSetKey) (*st
 }
 
 func (a *StateAPI) StateStakerPower(ctx context.Context, addr address.Address, tsk types.TipSetKey) (abi.StakePower, error) {
+	var err error
+	if addr.Protocol() != address.ID {
+		if addr, err = a.StateLookupID(ctx, addr, tsk); err != nil {
+			return big.Zero(), err
+		}
+	}
 	sact, err := a.StateGetActor(ctx, stake.Address, tsk)
 	if err != nil {
 		return big.Zero(), err
@@ -1363,6 +1369,12 @@ func (a *StateAPI) StateStakerPower(ctx context.Context, addr address.Address, t
 }
 
 func (a *StateAPI) StateStakerLockedPrincipalList(ctx context.Context, addr address.Address, tsk types.TipSetKey) ([]stake.LockedPrincipal, error) {
+	var err error
+	if addr.Protocol() != address.ID {
+		if addr, err = a.StateLookupID(ctx, addr, tsk); err != nil {
+			return nil, err
+		}
+	}
 	sact, err := a.StateGetActor(ctx, stake.Address, tsk)
 	if err != nil {
 		return nil, err
@@ -1375,6 +1387,12 @@ func (a *StateAPI) StateStakerLockedPrincipalList(ctx context.Context, addr addr
 }
 
 func (a *StateAPI) StateStakerLockedPrincipal(ctx context.Context, addr address.Address, tsk types.TipSetKey) (abi.TokenAmount, error) {
+	var err error
+	if addr.Protocol() != address.ID {
+		if addr, err = a.StateLookupID(ctx, addr, tsk); err != nil {
+			return big.Zero(), err
+		}
+	}
 	sact, err := a.StateGetActor(ctx, stake.Address, tsk)
 	if err != nil {
 		return big.Zero(), err
@@ -1387,6 +1405,12 @@ func (a *StateAPI) StateStakerLockedPrincipal(ctx context.Context, addr address.
 }
 
 func (a *StateAPI) StateStakerAvailablePrincipal(ctx context.Context, addr address.Address, tsk types.TipSetKey) (abi.TokenAmount, error) {
+	var err error
+	if addr.Protocol() != address.ID {
+		if addr, err = a.StateLookupID(ctx, addr, tsk); err != nil {
+			return big.Zero(), err
+		}
+	}
 	sact, err := a.StateGetActor(ctx, stake.Address, tsk)
 	if err != nil {
 		return big.Zero(), err
@@ -1399,6 +1423,12 @@ func (a *StateAPI) StateStakerAvailablePrincipal(ctx context.Context, addr addre
 }
 
 func (a *StateAPI) StateStakerVestingRewardList(ctx context.Context, addr address.Address, tsk types.TipSetKey) ([]stake.VestingFund, error) {
+	var err error
+	if addr.Protocol() != address.ID {
+		if addr, err = a.StateLookupID(ctx, addr, tsk); err != nil {
+			return nil, err
+		}
+	}
 	sact, err := a.StateGetActor(ctx, stake.Address, tsk)
 	if err != nil {
 		return nil, err
@@ -1411,6 +1441,12 @@ func (a *StateAPI) StateStakerVestingRewardList(ctx context.Context, addr addres
 }
 
 func (a *StateAPI) StateStakerVestingReward(ctx context.Context, addr address.Address, tsk types.TipSetKey) (abi.TokenAmount, error) {
+	var err error
+	if addr.Protocol() != address.ID {
+		if addr, err = a.StateLookupID(ctx, addr, tsk); err != nil {
+			return big.Zero(), err
+		}
+	}
 	sact, err := a.StateGetActor(ctx, stake.Address, tsk)
 	if err != nil {
 		return big.Zero(), err
@@ -1423,6 +1459,12 @@ func (a *StateAPI) StateStakerVestingReward(ctx context.Context, addr address.Ad
 }
 
 func (a *StateAPI) StateStakerAvailableReward(ctx context.Context, addr address.Address, tsk types.TipSetKey) (abi.TokenAmount, error) {
+	var err error
+	if addr.Protocol() != address.ID {
+		if addr, err = a.StateLookupID(ctx, addr, tsk); err != nil {
+			return big.Zero(), err
+		}
+	}
 	sact, err := a.StateGetActor(ctx, stake.Address, tsk)
 	if err != nil {
 		return big.Zero(), err
