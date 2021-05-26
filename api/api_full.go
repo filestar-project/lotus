@@ -302,6 +302,8 @@ type FullNode interface {
 	ClientRetrieveWithEvents(ctx context.Context, order RetrievalOrder, ref *FileRef) (<-chan marketevents.RetrievalEvent, error)
 	// ClientQueryAsk returns a signed StorageAsk from the specified miner.
 	ClientQueryAsk(ctx context.Context, p peer.ID, miner address.Address) (*storagemarket.StorageAsk, error)
+	// ClientCalcCommP calculates the CommP and data size of the specified CID
+	ClientDealPieceCID(ctx context.Context, root cid.Cid) (DataCIDSize, error)
 	// ClientCalcCommP calculates the CommP for a specified file
 	ClientCalcCommP(ctx context.Context, inpath string) (*CommPRet, error)
 	// ClientGenCar generates a CAR file for the specified file.
@@ -313,6 +315,8 @@ type FullNode interface {
 	ClientDataTransferUpdates(ctx context.Context) (<-chan DataTransferChannel, error)
 	// ClientRestartDataTransfer attempts to restart a data transfer with the given transfer ID and other peer
 	ClientRestartDataTransfer(ctx context.Context, transferID datatransfer.TransferID, otherPeer peer.ID, isInitiator bool) error
+	// ClientCancelDataTransfer cancels a data transfer with the given transfer ID and other peer
+	ClientCancelDataTransfer(ctx context.Context, transferID datatransfer.TransferID, otherPeer peer.ID, isInitiator bool) error
 	// ClientRetrieveTryRestartInsufficientFunds attempts to restart stalled retrievals on a given payment channel
 	// which are stuck due to insufficient funds
 	ClientRetrieveTryRestartInsufficientFunds(ctx context.Context, paymentChannel address.Address) error
@@ -341,6 +345,8 @@ type FullNode interface {
 	StateReadState(ctx context.Context, actor address.Address, tsk types.TipSetKey) (*ActorState, error)
 	// StateListMessages looks back and returns all messages with a matching to or from address, stopping at the given height.
 	StateListMessages(ctx context.Context, match *MessageMatch, tsk types.TipSetKey, toht abi.ChainEpoch) ([]cid.Cid, error)
+	// StateDecodeParams attempts to decode the provided params, based on the recipient actor address and method number.
+	StateDecodeParams(ctx context.Context, toAddr address.Address, method abi.MethodNum, params []byte, tsk types.TipSetKey) (interface{}, error)
 
 	// StateNetworkName returns the name of the network the node is synced to
 	StateNetworkName(context.Context) (dtypes.NetworkName, error)
@@ -372,6 +378,8 @@ type FullNode interface {
 	// StateMinerAvailableBalance returns the portion of a miner's balance that can be withdrawn or spent
 	StateMinerAvailableBalance(context.Context, address.Address, types.TipSetKey) (types.BigInt, error)
 	StateMinerVestingFunds(context.Context, address.Address, types.TipSetKey) (*miner.VestingFunds, error)
+	// StateMinerSectorAllocated checks if a sector is allocated
+	StateMinerSectorAllocated(context.Context, address.Address, abi.SectorNumber, types.TipSetKey) (bool, error)
 	// StateSectorPreCommitInfo returns the PreCommit info for the specified miner's sector
 	StateSectorPreCommitInfo(context.Context, address.Address, abi.SectorNumber, types.TipSetKey) (miner.SectorPreCommitOnChainInfo, error)
 	// StateSectorGetInfo returns the on-chain info for the specified miner's sector. Returns null in case the sector info isn't found
@@ -518,8 +526,10 @@ type FullNode interface {
 	// along with the address removal.
 	MsigRemoveSigner(ctx context.Context, msig address.Address, proposer address.Address, toRemove address.Address, decrease bool) (cid.Cid, error)
 
-	MarketEnsureAvailable(context.Context, address.Address, address.Address, types.BigInt) (cid.Cid, error)
-	// MarketFreeBalance
+	// MarketReserveFunds reserves funds for a deal
+	MarketReserveFunds(ctx context.Context, wallet address.Address, addr address.Address, amt types.BigInt) (cid.Cid, error)
+	// MarketReleaseFunds releases funds reserved by MarketReserveFunds
+	MarketReleaseFunds(ctx context.Context, addr address.Address, amt types.BigInt) error
 
 	// MethodGroup: Paych
 	// The Paych methods are for interacting with and managing payment channels
@@ -793,8 +803,9 @@ type IpldObject struct {
 }
 
 type ActiveSync struct {
-	Base   *types.TipSet
-	Target *types.TipSet
+	WorkerID uint64
+	Base     *types.TipSet
+	Target   *types.TipSet
 
 	Stage  SyncStateStage
 	Height abi.ChainEpoch
@@ -897,6 +908,12 @@ type BlockTemplate struct {
 type DataSize struct {
 	PayloadSize int64
 	PieceSize   abi.PaddedPieceSize
+}
+
+type DataCIDSize struct {
+	PayloadSize int64
+	PieceSize   abi.PaddedPieceSize
+	PieceCID    cid.Cid
 }
 
 type CommPRet struct {

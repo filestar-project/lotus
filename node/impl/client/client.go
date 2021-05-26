@@ -1,16 +1,17 @@
 package client
 
 import (
+	"bufio"
 	"context"
 	"fmt"
 	"io"
 	"os"
 
-	"github.com/filecoin-project/go-state-types/dline"
-
-	"github.com/filecoin-project/go-state-types/big"
 	"golang.org/x/xerrors"
 
+	"github.com/filecoin-project/go-padreader"
+	"github.com/filecoin-project/go-state-types/big"
+	"github.com/filecoin-project/go-state-types/dline"
 	"github.com/ipfs/go-blockservice"
 	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-cidutil"
@@ -40,7 +41,6 @@ import (
 	"github.com/filecoin-project/go-fil-markets/shared"
 	"github.com/filecoin-project/go-fil-markets/storagemarket"
 	"github.com/filecoin-project/go-multistore"
-	"github.com/filecoin-project/go-padreader"
 	"github.com/filecoin-project/go-state-types/abi"
 
 	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper"
@@ -50,6 +50,7 @@ import (
 	"github.com/filecoin-project/lotus/build"
 	"github.com/filecoin-project/lotus/chain/store"
 	"github.com/filecoin-project/lotus/chain/types"
+	"github.com/filecoin-project/lotus/lib/commp"
 	"github.com/filecoin-project/lotus/markets/utils"
 	"github.com/filecoin-project/lotus/node/impl/full"
 	"github.com/filecoin-project/lotus/node/impl/paych"
@@ -709,6 +710,24 @@ func (a *API) ClientDealSize(ctx context.Context, root cid.Cid) (api.DataSize, e
 	}, nil
 }
 
+func (a *API) ClientDealPieceCID(ctx context.Context, root cid.Cid) (api.DataCIDSize, error) {
+	dag := merkledag.NewDAGService(blockservice.New(a.CombinedBstore, offline.Exchange(a.CombinedBstore)))
+
+	w := &commp.Writer{}
+	bw := bufio.NewWriterSize(w, int(commp.CommPBuf))
+
+	err := car.WriteCar(ctx, dag, []cid.Cid{root}, w)
+	if err != nil {
+		return api.DataCIDSize{}, err
+	}
+
+	if err := bw.Flush(); err != nil {
+		return api.DataCIDSize{}, err
+	}
+
+	return w.Sum()
+}
+
 func (a *API) ClientGenCar(ctx context.Context, ref api.FileRef, outputPath string) error {
 	id, st, err := a.imgr().NewStore()
 	if err != nil {
@@ -856,6 +875,14 @@ func (a *API) ClientRestartDataTransfer(ctx context.Context, transferID datatran
 		return a.DataTransfer.RestartDataTransferChannel(ctx, datatransfer.ChannelID{Initiator: selfPeer, Responder: otherPeer, ID: transferID})
 	}
 	return a.DataTransfer.RestartDataTransferChannel(ctx, datatransfer.ChannelID{Initiator: otherPeer, Responder: selfPeer, ID: transferID})
+}
+
+func (a *API) ClientCancelDataTransfer(ctx context.Context, transferID datatransfer.TransferID, otherPeer peer.ID, isInitiator bool) error {
+	selfPeer := a.Host.ID()
+	if isInitiator {
+		return a.DataTransfer.CloseDataTransferChannel(ctx, datatransfer.ChannelID{Initiator: selfPeer, Responder: otherPeer, ID: transferID})
+	}
+	return a.DataTransfer.CloseDataTransferChannel(ctx, datatransfer.ChannelID{Initiator: otherPeer, Responder: selfPeer, ID: transferID})
 }
 
 func newDealInfo(v storagemarket.ClientDeal) api.DealInfo {
