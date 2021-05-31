@@ -1,17 +1,22 @@
 package main
 
 import (
+	"bufio"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 
+	"github.com/dgraph-io/badger/v2"
 	"github.com/docker/go-units"
 	"github.com/ipfs/go-datastore"
 	dsq "github.com/ipfs/go-datastore/query"
 	logging "github.com/ipfs/go-log"
+	"github.com/mitchellh/go-homedir"
 	"github.com/polydawn/refmt/cbor"
 	"github.com/urfave/cli/v2"
+	"go.uber.org/multierr"
 	"golang.org/x/xerrors"
 
 	"github.com/filecoin-project/lotus/lib/backupds"
@@ -25,6 +30,7 @@ var datastoreCmd = &cli.Command{
 		datastoreBackupCmd,
 		datastoreListCmd,
 		datastoreGetCmd,
+		datastoreRewriteCmd,
 	},
 }
 
@@ -287,4 +293,77 @@ func printVal(enc string, val []byte) error {
 	}
 
 	return nil
+}
+
+var datastoreRewriteCmd = &cli.Command{
+	Name:        "rewrite",
+	Description: "rewrites badger datastore to compact it and possibly change params",
+	ArgsUsage:   "source destination",
+	Action: func(cctx *cli.Context) error {
+		if cctx.NArg() != 2 {
+			return xerrors.Errorf("expected 2 arguments, got %d", cctx.NArg())
+		}
+		fromPath, err := homedir.Expand(cctx.Args().Get(0))
+		if err != nil {
+			return xerrors.Errorf("cannot get fromPath: %w", err)
+		}
+		toPath, err := homedir.Expand(cctx.Args().Get(1))
+		if err != nil {
+			return xerrors.Errorf("cannot get toPath: %w", err)
+		}
+
+		var (
+			from *badger.DB
+			to   *badger.DB
+		)
+
+		// open the destination (to) store.
+		opts, err := repo.BadgerBlockstoreOptions(repo.BlockstoreChain, toPath, false)
+		if err != nil {
+			return xerrors.Errorf("failed to get badger options: %w", err)
+		}
+		opts.SyncWrites = false
+		if to, err = badger.Open(opts.Options); err != nil {
+			return xerrors.Errorf("opening 'to' badger store: %w", err)
+		}
+
+		// open the source (from) store.
+		opts, err = repo.BadgerBlockstoreOptions(repo.BlockstoreChain, fromPath, true)
+		if err != nil {
+			return xerrors.Errorf("failed to get badger options: %w", err)
+		}
+		if from, err = badger.Open(opts.Options); err != nil {
+			return xerrors.Errorf("opening 'from' datastore: %w", err)
+		}
+
+		pr, pw := io.Pipe()
+		errCh := make(chan error)
+		go func() {
+			bw := bufio.NewWriterSize(pw, 64<<20)
+			_, err := from.Backup(bw, 0)
+			_ = bw.Flush()
+			_ = pw.CloseWithError(err)
+			errCh <- err
+		}()
+		go func() {
+			err := to.Load(pr, 256)
+			errCh <- err
+		}()
+
+		err = <-errCh
+		if err != nil {
+			select {
+			case nerr := <-errCh:
+				err = multierr.Append(err, nerr)
+			default:
+			}
+			return err
+		}
+
+		err = <-errCh
+		if err != nil {
+			return err
+		}
+		return multierr.Append(from.Close(), to.Close())
+	},
 }

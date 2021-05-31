@@ -1,6 +1,7 @@
 package modules
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -36,22 +37,21 @@ import (
 	"github.com/filecoin-project/go-fil-markets/shared"
 	"github.com/filecoin-project/go-fil-markets/storagemarket"
 	storageimpl "github.com/filecoin-project/go-fil-markets/storagemarket/impl"
-	"github.com/filecoin-project/go-fil-markets/storagemarket/impl/funds"
 	"github.com/filecoin-project/go-fil-markets/storagemarket/impl/storedask"
 	smnet "github.com/filecoin-project/go-fil-markets/storagemarket/network"
 	"github.com/filecoin-project/go-jsonrpc/auth"
 	"github.com/filecoin-project/go-multistore"
 	paramfetch "github.com/filecoin-project/go-paramfetch"
 	"github.com/filecoin-project/go-state-types/abi"
+	"github.com/filecoin-project/go-statestore"
 	"github.com/filecoin-project/go-storedcounter"
 
+	"github.com/filecoin-project/lotus/api"
 	sectorstorage "github.com/filecoin-project/lotus/extern/sector-storage"
 	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper"
 	"github.com/filecoin-project/lotus/extern/sector-storage/stores"
 	sealing "github.com/filecoin-project/lotus/extern/storage-sealing"
 	"github.com/filecoin-project/lotus/extern/storage-sealing/sealiface"
-	"github.com/filecoin-project/lotus/journal"
-	"github.com/filecoin-project/lotus/markets"
 
 	lapi "github.com/filecoin-project/lotus/api"
 	"github.com/filecoin-project/lotus/build"
@@ -59,7 +59,9 @@ import (
 	"github.com/filecoin-project/lotus/chain/gen"
 	"github.com/filecoin-project/lotus/chain/gen/slashfilter"
 	"github.com/filecoin-project/lotus/chain/types"
+	"github.com/filecoin-project/lotus/journal"
 	"github.com/filecoin-project/lotus/lib/blockstore"
+	"github.com/filecoin-project/lotus/markets"
 	marketevents "github.com/filecoin-project/lotus/markets/loggers"
 	"github.com/filecoin-project/lotus/markets/retrievaladapter"
 	"github.com/filecoin-project/lotus/miner"
@@ -186,22 +188,12 @@ func StorageMiner(fc config.MinerFeeConfig) func(params StorageMinerParams) (*st
 
 		ctx := helpers.LifecycleCtx(mctx, lc)
 
-		mi, err := api.StateMinerInfo(ctx, maddr, types.EmptyTSK)
+		fps, err := storage.NewWindowedPoStScheduler(api, fc, sealer, sealer, j, maddr)
 		if err != nil {
 			return nil, err
 		}
 
-		worker, err := api.StateAccountKey(ctx, mi.Worker, types.EmptyTSK)
-		if err != nil {
-			return nil, err
-		}
-
-		fps, err := storage.NewWindowedPoStScheduler(api, fc, sealer, sealer, j, maddr, worker)
-		if err != nil {
-			return nil, err
-		}
-
-		sm, err := storage.NewMiner(api, maddr, worker, h, ds, sealer, sc, verif, gsd, fc, j)
+		sm, err := storage.NewMiner(api, maddr, h, ds, sealer, sc, verif, gsd, fc, j)
 		if err != nil {
 			return nil, err
 		}
@@ -250,6 +242,45 @@ func HandleDeals(mctx helpers.MetricsCtx, lc fx.Lifecycle, host host.Host, h sto
 		},
 		OnStop: func(context.Context) error {
 			return h.Stop()
+		},
+	})
+}
+
+func HandleMigrateProviderFunds(lc fx.Lifecycle, ds dtypes.MetadataDS, node api.FullNode, minerAddress dtypes.MinerAddress) {
+	lc.Append(fx.Hook{
+		OnStart: func(ctx context.Context) error {
+			b, err := ds.Get(datastore.NewKey("/marketfunds/provider"))
+			if err != nil {
+				if xerrors.Is(err, datastore.ErrNotFound) {
+					return nil
+				}
+				return err
+			}
+
+			var value abi.TokenAmount
+			if err = value.UnmarshalCBOR(bytes.NewReader(b)); err != nil {
+				return err
+			}
+			ts, err := node.ChainHead(ctx)
+			if err != nil {
+				log.Errorf("provider funds migration - getting chain head: %w", err)
+				return nil
+			}
+
+			mi, err := node.StateMinerInfo(ctx, address.Address(minerAddress), ts.Key())
+			if err != nil {
+				log.Errorf("provider funds migration - getting miner info %s: %w", minerAddress, err)
+				return nil
+			}
+
+			_, err = node.MarketReserveFunds(ctx, mi.Worker, address.Address(minerAddress), value)
+			if err != nil {
+				log.Errorf("provider funds migration - reserving funds (wallet %s, addr %s, funds %d): %w",
+					mi.Worker, minerAddress, value, err)
+				return nil
+			}
+
+			return ds.Delete(datastore.NewKey("/marketfunds/provider"))
 		},
 	})
 }
@@ -404,12 +435,6 @@ func NewStorageAsk(ctx helpers.MetricsCtx, fapi lapi.FullNode, ds dtypes.Metadat
 	return storedAsk, nil
 }
 
-type ProviderDealFunds funds.DealFunds
-
-func NewProviderDealFunds(ds dtypes.MetadataDS) (ProviderDealFunds, error) {
-	return funds.NewDealFunds(ds, datastore.NewKey("/marketfunds/provider"))
-}
-
 func BasicDealFilter(user dtypes.StorageDealFilter) func(onlineOk dtypes.ConsiderOnlineStorageDealsConfigFunc,
 	offlineOk dtypes.ConsiderOfflineStorageDealsConfigFunc,
 	blocklistFunc dtypes.StorageDealPieceCidBlocklistConfigFunc,
@@ -496,7 +521,6 @@ func StorageProvider(minerAddress dtypes.MinerAddress,
 	dataTransfer dtypes.ProviderDataTransfer,
 	spn storagemarket.StorageProviderNode,
 	df dtypes.StorageDealFilter,
-	funds ProviderDealFunds,
 ) (storagemarket.StorageProvider, error) {
 	net := smnet.NewFromLibp2pHost(h)
 	store, err := piecefilestore.NewLocalFileStore(piecefilestore.OsPath(r.Path()))
@@ -506,7 +530,7 @@ func StorageProvider(minerAddress dtypes.MinerAddress,
 
 	opt := storageimpl.CustomDealDecisionLogic(storageimpl.DealDeciderFunc(df))
 
-	return storageimpl.NewProvider(net, namespace.Wrap(ds, datastore.NewKey("/deals/provider")), store, mds, pieceStore, dataTransfer, spn, address.Address(minerAddress), ffiConfig.SealProofType, storedAsk, funds, opt)
+	return storageimpl.NewProvider(net, namespace.Wrap(ds, datastore.NewKey("/deals/provider")), store, mds, pieceStore, dataTransfer, spn, address.Address(minerAddress), ffiConfig.SealProofType, storedAsk, opt)
 }
 
 func RetrievalDealFilter(userFilter dtypes.RetrievalDealFilter) func(onlineOk dtypes.ConsiderOnlineRetrievalDealsConfigFunc,
@@ -568,10 +592,16 @@ func RetrievalProvider(h host.Host,
 	return retrievalimpl.NewProvider(maddr, adapter, netwk, pieceStore, mds, dt, namespace.Wrap(ds, datastore.NewKey("/retrievals/provider")), opt)
 }
 
-func SectorStorage(mctx helpers.MetricsCtx, lc fx.Lifecycle, ls stores.LocalStorage, si stores.SectorIndex, cfg *ffiwrapper.Config, sc sectorstorage.SealerConfig, urls sectorstorage.URLs, sa sectorstorage.StorageAuth) (*sectorstorage.Manager, error) {
+var WorkerCallsPrefix = datastore.NewKey("/worker/calls")
+var ManagerWorkPrefix = datastore.NewKey("/stmgr/calls")
+
+func SectorStorage(mctx helpers.MetricsCtx, lc fx.Lifecycle, ls stores.LocalStorage, si stores.SectorIndex, cfg *ffiwrapper.Config, sc sectorstorage.SealerConfig, urls sectorstorage.URLs, sa sectorstorage.StorageAuth, ds dtypes.MetadataDS) (*sectorstorage.Manager, error) {
 	ctx := helpers.LifecycleCtx(mctx, lc)
 
-	sst, err := sectorstorage.New(ctx, ls, si, cfg, sc, urls, sa)
+	wsts := statestore.New(namespace.Wrap(ds, WorkerCallsPrefix))
+	smsts := statestore.New(namespace.Wrap(ds, ManagerWorkPrefix))
+
+	sst, err := sectorstorage.New(ctx, ls, si, cfg, sc, urls, sa, wsts, smsts)
 	if err != nil {
 		return nil, err
 	}

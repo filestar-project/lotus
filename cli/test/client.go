@@ -11,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	"golang.org/x/xerrors"
+
 	"github.com/filecoin-project/lotus/api/test"
 	"github.com/filecoin-project/lotus/build"
 	"github.com/filecoin-project/lotus/chain/types"
@@ -25,8 +27,8 @@ func RunClientTest(t *testing.T, cmds []*lcli.Command, clientNode test.TestNode)
 	defer cancel()
 
 	// Create mock CLI
-	mockCLI := newMockCLI(t, cmds)
-	clientCLI := mockCLI.client(clientNode.ListenAddr)
+	mockCLI := NewMockCLI(ctx, t, cmds)
+	clientCLI := mockCLI.Client(clientNode.ListenAddr)
 
 	// Get the miner address
 	addrs, err := clientNode.StateListMiners(ctx, types.EmptyTSK)
@@ -37,10 +39,7 @@ func RunClientTest(t *testing.T, cmds []*lcli.Command, clientNode test.TestNode)
 	fmt.Println("Miner:", minerAddr)
 
 	// client query-ask <miner addr>
-	cmd := []string{
-		"client", "query-ask", minerAddr.String(),
-	}
-	out := clientCLI.runCmd(cmd)
+	out := clientCLI.RunCmd("client", "query-ask", minerAddr.String())
 	require.Regexp(t, regexp.MustCompile("Ask:"), out)
 
 	// Create a deal (non-interactive)
@@ -50,10 +49,7 @@ func RunClientTest(t *testing.T, cmds []*lcli.Command, clientNode test.TestNode)
 	dataCid := res.Root
 	price := "1000000attofil"
 	duration := fmt.Sprintf("%d", build.MinDealDuration)
-	cmd = []string{
-		"client", "deal", dataCid.String(), minerAddr.String(), price, duration,
-	}
-	out = clientCLI.runCmd(cmd)
+	out = clientCLI.RunCmd("client", "deal", dataCid.String(), minerAddr.String(), price, duration)
 	fmt.Println("client deal", out)
 
 	// Create a deal (interactive)
@@ -67,9 +63,7 @@ func RunClientTest(t *testing.T, cmds []*lcli.Command, clientNode test.TestNode)
 	require.NoError(t, err)
 	dataCid2 := res.Root
 	duration = fmt.Sprintf("%d", build.MinDealDuration/builtin.EpochsInDay)
-	cmd = []string{
-		"client", "deal",
-	}
+	cmd := []string{"client", "deal"}
 	interactiveCmds := []string{
 		dataCid2.String(),
 		duration,
@@ -77,15 +71,14 @@ func RunClientTest(t *testing.T, cmds []*lcli.Command, clientNode test.TestNode)
 		"no",
 		"yes",
 	}
-	out = clientCLI.runInteractiveCmd(cmd, interactiveCmds)
+	out = clientCLI.RunInteractiveCmd(cmd, interactiveCmds)
 	fmt.Println("client deal:\n", out)
 
 	// Wait for provider to start sealing deal
 	dealStatus := ""
-	for dealStatus != "StorageDealSealing" {
+	for {
 		// client list-deals
-		cmd = []string{"client", "list-deals"}
-		out = clientCLI.runCmd(cmd)
+		out = clientCLI.RunCmd("client", "list-deals")
 		fmt.Println("list-deals:\n", out)
 
 		lines := strings.Split(out, "\n")
@@ -97,6 +90,9 @@ func RunClientTest(t *testing.T, cmds []*lcli.Command, clientNode test.TestNode)
 		}
 		dealStatus = parts[3]
 		fmt.Println("  Deal status:", dealStatus)
+		if dealComplete(t, dealStatus) {
+			break
+		}
 
 		time.Sleep(time.Second)
 	}
@@ -106,10 +102,18 @@ func RunClientTest(t *testing.T, cmds []*lcli.Command, clientNode test.TestNode)
 	tmpdir, err := ioutil.TempDir(os.TempDir(), "test-cli-client")
 	require.NoError(t, err)
 	path := filepath.Join(tmpdir, "outfile.dat")
-	cmd = []string{
-		"client", "retrieve", dataCid.String(), path,
-	}
-	out = clientCLI.runCmd(cmd)
+	out = clientCLI.RunCmd("client", "retrieve", dataCid.String(), path)
 	fmt.Println("retrieve:\n", out)
 	require.Regexp(t, regexp.MustCompile("Success"), out)
+}
+
+func dealComplete(t *testing.T, dealStatus string) bool {
+	switch dealStatus {
+	case "StorageDealFailing", "StorageDealError":
+		t.Fatal(xerrors.Errorf("Storage deal failed with status: " + dealStatus))
+	case "StorageDealStaged", "StorageDealSealing", "StorageDealActive", "StorageDealExpired", "StorageDealSlashed":
+		return true
+	}
+
+	return false
 }

@@ -23,11 +23,13 @@ import (
 	"github.com/filecoin-project/lotus/api/client"
 	"github.com/filecoin-project/lotus/api/test"
 	"github.com/filecoin-project/lotus/build"
+	"github.com/filecoin-project/lotus/chain"
 	"github.com/filecoin-project/lotus/chain/actors"
 	"github.com/filecoin-project/lotus/chain/actors/builtin/miner"
 	"github.com/filecoin-project/lotus/chain/actors/policy"
 	"github.com/filecoin-project/lotus/chain/gen"
 	genesis2 "github.com/filecoin-project/lotus/chain/gen/genesis"
+	"github.com/filecoin-project/lotus/chain/messagepool"
 	"github.com/filecoin-project/lotus/chain/types"
 	"github.com/filecoin-project/lotus/chain/wallet"
 	"github.com/filecoin-project/lotus/cmd/lotus-seed/seed"
@@ -49,6 +51,13 @@ import (
 	"github.com/multiformats/go-multiaddr"
 	"github.com/stretchr/testify/require"
 )
+
+func init() {
+	chain.BootstrapPeerThreshold = 1
+	messagepool.HeadChangeCoalesceMinDelay = time.Microsecond
+	messagepool.HeadChangeCoalesceMaxDelay = 2 * time.Microsecond
+	messagepool.HeadChangeCoalesceMergeInterval = 100 * time.Nanosecond
+}
 
 func CreateTestStorageNode(ctx context.Context, t *testing.T, waddr address.Address, act address.Address, pk crypto.PrivKey, tnd test.TestNode, mn mocknet.Mocknet, opts node.Option) test.TestStorageNode {
 	r := repo.NewMemory(nil)
