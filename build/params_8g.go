@@ -57,3 +57,5 @@ const SlashablePowerDelay = 20
 
 // Epochs
 const InteractivePoRepConfidence = 6
+
+const BootstrapPeerThreshold = 1
