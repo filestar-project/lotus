@@ -7,7 +7,6 @@ import (
 	"os"
 
 	"github.com/filecoin-project/go-state-types/abi"
-
 	"github.com/filecoin-project/lotus/chain/actors/policy"
 )
 
@@ -22,7 +21,7 @@ const UpgradeTapeHeight = -4
 var UpgradeActorsV2Height = abi.ChainEpoch(10)
 var UpgradeLiftoffHeight = abi.ChainEpoch(-5)
 
-const UpgradeKumquatHeight = -6
+const UpgradeKumquatHeight = 15
 
 const Upgrade8GiBSectorHeight = -7
 
@@ -57,3 +56,5 @@ const SlashablePowerDelay = 20
 
 // Epochs
 const InteractivePoRepConfidence = 6
+
+const BootstrapPeerThreshold = 1
