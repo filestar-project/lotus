@@ -37,6 +37,7 @@ import (
 	"github.com/filecoin-project/lotus/node/modules/dtypes"
 	"github.com/filecoin-project/lotus/storage"
 	"github.com/filecoin-project/lotus/storage/sectorblocks"
+	sto "github.com/filecoin-project/specs-storage/storage"
 )
 
 type StorageMinerAPI struct {
@@ -543,7 +544,7 @@ func (sm *StorageMinerAPI) CreateBackup(ctx context.Context, fpath string) error
 	return backup(sm.DS, fpath)
 }
 
-func (sm *StorageMinerAPI) CheckProvable(ctx context.Context, pp abi.RegisteredPoStProof, sectors []abi.SectorID) (map[abi.SectorNumber]string, error) {
+func (sm *StorageMinerAPI) CheckProvable(ctx context.Context, pp abi.RegisteredPoStProof, sectors []sto.SectorRef) (map[abi.SectorNumber]string, error) {
 	bad, err := sm.StorageMgr.CheckProvable(ctx, pp, sectors)
 	if err != nil {
 		return nil, err

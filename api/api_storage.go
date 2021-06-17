@@ -3,6 +3,7 @@ package api
 import (
 	"bytes"
 	"context"
+	"github.com/filecoin-project/specs-storage/storage"
 	"time"
 
 	datatransfer "github.com/filecoin-project/go-data-transfer"
@@ -117,7 +118,7 @@ type StorageMiner interface {
 	// the path specified when calling CreateBackup is within the base path
 	CreateBackup(ctx context.Context, fpath string) error
 
-	CheckProvable(ctx context.Context, pp abi.RegisteredPoStProof, sectors []abi.SectorID) (map[abi.SectorNumber]string, error) //perm:admin
+	CheckProvable(ctx context.Context, pp abi.RegisteredPoStProof, sectors []storage.SectorRef) (map[abi.SectorNumber]string, error) //perm:admin
 }
 
 type SealRes struct {

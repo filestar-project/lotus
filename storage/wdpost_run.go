@@ -221,7 +221,7 @@ func (s *WindowPoStScheduler) checkSectors(ctx context.Context, check bitfield.B
 	if err != nil {
 		return bitfield.BitField{}, xerrors.Errorf("checking provable sectors: %w", err)
 	}
-	for _, id := range bad {
+	for id := range bad {
 		delete(sectors, id.Number)
 	}
 

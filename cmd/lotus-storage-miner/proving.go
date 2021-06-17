@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/filecoin-project/go-address"
 	"github.com/filecoin-project/go-state-types/abi"
+	"github.com/filecoin-project/specs-storage/storage"
 	"os"
 	"strconv"
 	"text/tabwriter"
@@ -441,12 +442,15 @@ var provingCheckProvableCmd = &cli.Command{
 				return err
 			}
 
-			var tocheck []abi.SectorID
+			var tocheck []storage.SectorRef
 			for _, info := range sectorInfos {
 				sectors[info.SectorNumber] = struct{}{}
-				tocheck = append(tocheck, abi.SectorID{
-					Miner:  abi.ActorID(mid),
-					Number: info.SectorNumber,
+				tocheck = append(tocheck, storage.SectorRef{
+					ProofType: info.SealProof,
+					ID: abi.SectorID{
+						Miner:  abi.ActorID(mid),
+						Number: info.SectorNumber,
+					},
 				})
 			}
 
