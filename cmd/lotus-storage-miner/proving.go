@@ -386,6 +386,10 @@ var provingCheckProvableCmd = &cli.Command{
 			Usage: "print only bad sectors",
 			Value: false,
 		},
+		&cli.BoolFlag{
+			Name:  "slow",
+			Usage: "run slower checks",
+		},
 	},
 	Action: func(cctx *cli.Context) error {
 		if cctx.Args().Len() != 1 {
@@ -454,7 +458,7 @@ var provingCheckProvableCmd = &cli.Command{
 				})
 			}
 
-			bad, err := sapi.CheckProvable(ctx, abi.SealProofInfos[info.SealProofType].WindowPoStProof, tocheck)
+			bad, err := sapi.CheckProvable(ctx, abi.SealProofInfos[info.SealProofType].WindowPoStProof, tocheck, cctx.Bool("slow"))
 			if err != nil {
 				return err
 			}
