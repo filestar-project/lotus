@@ -10,33 +10,31 @@ import (
 	"golang.org/x/xerrors"
 )
 
-func move(from, to string) error {
+func cp(from, to string) error {
 	from, err := homedir.Expand(from)
 	if err != nil {
-		return xerrors.Errorf("move: expanding from: %w", err)
+		return xerrors.Errorf("cp: expanding from: %w", err)
 	}
 
 	to, err = homedir.Expand(to)
 	if err != nil {
-		return xerrors.Errorf("move: expanding to: %w", err)
+		return xerrors.Errorf("cp: expanding to: %w", err)
 	}
 
 	if filepath.Base(from) != filepath.Base(to) {
-		return xerrors.Errorf("move: base names must match ('%s' != '%s')", filepath.Base(from), filepath.Base(to))
+		return xerrors.Errorf("cp: base names must match ('%s' != '%s')", filepath.Base(from), filepath.Base(to))
 	}
-
-	log.Debugw("move sector data", "from", from, "to", to)
 
 	toDir := filepath.Dir(to)
 
-	// `mv` has decades of experience in moving files quickly; don't pretend we
-	//  can do better
+	log.Debugw("cp sector data", "from", from, "to", toDir)
 
 	var errOut bytes.Buffer
-	cmd := exec.Command("/usr/bin/env", "mv", "-t", toDir, from) // nolint
+
+	cmd := exec.Command("/usr/bin/env", "cp", "-r", from, toDir)
 	cmd.Stderr = &errOut
 	if err := cmd.Run(); err != nil {
-		return xerrors.Errorf("exec mv (stderr: %s): %w", strings.TrimSpace(errOut.String()), err)
+		return xerrors.Errorf("exec cp (stderr: %s): %w", strings.TrimSpace(errOut.String()), err)
 	}
 
 	return nil

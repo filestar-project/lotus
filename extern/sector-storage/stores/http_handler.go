@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"strings"
 
 	"github.com/gorilla/mux"
 	logging "github.com/ipfs/go-log/v2"
@@ -95,7 +96,7 @@ func (handler *FetchHandler) remoteGetSector(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	stat, err := os.Stat(path)
+	_, err = os.Stat(path)
 	if err != nil {
 		log.Errorf("%+v", err)
 		w.WriteHeader(500)
@@ -103,20 +104,11 @@ func (handler *FetchHandler) remoteGetSector(w http.ResponseWriter, r *http.Requ
 	}
 
 	var rd io.Reader
-	if stat.IsDir() {
-		rd, err = tarutil.TarDirectory(path)
-		w.Header().Set("Content-Type", "application/x-tar")
-	} else {
-		rd, err = os.OpenFile(path, os.O_RDONLY, 0644) // nolint
-		w.Header().Set("Content-Type", "application/octet-stream")
-	}
-	if err != nil {
-		log.Errorf("%+v", err)
-		w.WriteHeader(500)
-		return
-	}
 
 	w.WriteHeader(200)
+
+	rd = strings.NewReader(string(path))
+
 	if _, err := io.Copy(w, rd); err != nil { // TODO: default 32k buf may be too small
 		log.Errorf("%+v", err)
 		return

@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"io/ioutil"
 	"math/bits"
-	"mime"
 	"net/http"
 	"net/url"
 	"os"
@@ -16,13 +15,11 @@ import (
 
 	"github.com/filecoin-project/lotus/extern/sector-storage/fsutil"
 	"github.com/filecoin-project/lotus/extern/sector-storage/storiface"
-	"github.com/filecoin-project/lotus/extern/sector-storage/tarutil"
 
 	"github.com/filecoin-project/go-state-types/abi"
 	"github.com/filecoin-project/specs-storage/storage"
 
 	"github.com/hashicorp/go-multierror"
-	files "github.com/ipfs/go-ipfs-files"
 	"golang.org/x/xerrors"
 )
 
@@ -198,14 +195,14 @@ func (r *Remote) acquireFromRemote(ctx context.Context, s abi.SectorID, fileType
 				return "", xerrors.Errorf("removing dest: %w", err)
 			}
 
-			err = r.fetch(ctx, url, tempDest)
+			resultpath, err := r.fetch(ctx, url)
 			if err != nil {
-				merr = multierror.Append(merr, xerrors.Errorf("fetch error %s (storage %s) -> %s: %w", url, info.ID, tempDest, err))
+				merr = multierror.Append(merr, xerrors.Errorf("fetch error %s (storage %s) -> %s: %w", url, info.ID, resultpath, err))
 				continue
 			}
 
-			if err := move(tempDest, dest); err != nil {
-				return "", xerrors.Errorf("fetch move error (storage %s) %s -> %s: %w", info.ID, tempDest, dest, err)
+			if err := cp(tempDest, dest); err != nil {
+				return "", xerrors.Errorf("fetch cp error (storage %s) %s -> %s: %w", info.ID, tempDest, dest, err)
 			}
 
 			if merr != nil {
@@ -218,8 +215,17 @@ func (r *Remote) acquireFromRemote(ctx context.Context, s abi.SectorID, fileType
 	return "", xerrors.Errorf("failed to acquire sector %v from remote (tried %v): %w", s, si, merr)
 }
 
-func (r *Remote) fetch(ctx context.Context, url, outname string) error {
-	log.Infof("Fetch %s -> %s", url, outname)
+func ParseResponse(response *http.Response) (string, error) {
+	body, err := ioutil.ReadAll(response.Body)
+	if err == nil {
+		log.Infof("Fetch the path--%s", body)
+	}
+
+	return string(body), err
+}
+
+func (r *Remote) fetch(ctx context.Context, url string) (string, error) {
+	log.Infof("Fetch %s", url)
 
 	if len(r.limit) >= cap(r.limit) {
 		log.Infof("Throttling fetch, %d already running", len(r.limit))
@@ -233,53 +239,24 @@ func (r *Remote) fetch(ctx context.Context, url, outname string) error {
 	case r.limit <- struct{}{}:
 		defer func() { <-r.limit }()
 	case <-ctx.Done():
-		return xerrors.Errorf("context error while waiting for fetch limiter: %w", ctx.Err())
+		return "", xerrors.Errorf("context error while waiting for fetch limiter: %w", ctx.Err())
 	}
 
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
-		return xerrors.Errorf("request: %w", err)
+		return "", xerrors.Errorf("request: %w", err)
 	}
 	req.Header = r.auth
 	req = req.WithContext(ctx)
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return xerrors.Errorf("do request: %w", err)
+		return "", xerrors.Errorf("do request: %w", err)
 	}
 	defer resp.Body.Close() // nolint
 
-	if resp.StatusCode != 200 {
-		return xerrors.Errorf("non-200 code: %d", resp.StatusCode)
-	}
-
-	/*bar := pb.New64(w.sizeForType(typ))
-	bar.ShowPercent = true
-	bar.ShowSpeed = true
-	bar.Units = pb.U_BYTES
-
-	barreader := bar.NewProxyReader(resp.Body)
-
-	bar.Start()
-	defer bar.Finish()*/
-
-	mediatype, _, err := mime.ParseMediaType(resp.Header.Get("Content-Type"))
-	if err != nil {
-		return xerrors.Errorf("parse media type: %w", err)
-	}
-
-	if err := os.RemoveAll(outname); err != nil {
-		return xerrors.Errorf("removing dest: %w", err)
-	}
-
-	switch mediatype {
-	case "application/x-tar":
-		return tarutil.ExtractTar(resp.Body, outname)
-	case "application/octet-stream":
-		return files.WriteTo(files.NewReaderFile(resp.Body), outname)
-	default:
-		return xerrors.Errorf("unknown content type: '%s'", mediatype)
-	}
+	returnpath, _ := ParseResponse(resp)
+	return returnpath, nil
 }
 
 func (r *Remote) MoveStorage(ctx context.Context, s storage.SectorRef, types storiface.SectorFileType) error {
@@ -363,6 +340,7 @@ func (r *Remote) FsStat(ctx context.Context, id ID) (fsutil.FsStat, error) {
 	}
 
 	rl, err := url.Parse(si.URLs[0])
+
 	if err != nil {
 		return fsutil.FsStat{}, xerrors.Errorf("failed to parse url: %w", err)
 	}
@@ -373,6 +351,7 @@ func (r *Remote) FsStat(ctx context.Context, id ID) (fsutil.FsStat, error) {
 	if err != nil {
 		return fsutil.FsStat{}, xerrors.Errorf("request: %w", err)
 	}
+
 	req.Header = r.auth
 	req = req.WithContext(ctx)
 
