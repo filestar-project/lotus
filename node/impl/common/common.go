@@ -108,10 +108,21 @@ func (a *CommonAPI) NetPeerInfo(_ context.Context, p peer.ID) (*api.ExtendedPeer
 	for _, a := range a.Host.Peerstore().Addrs(p) {
 		info.Addrs = append(info.Addrs, a.String())
 	}
+	sort.Strings(info.Addrs)
 
 	protocols, err := a.Host.Peerstore().GetProtocols(p)
 	if err == nil {
+		sort.Strings(protocols)
 		info.Protocols = protocols
+	}
+
+	if cm := a.Host.ConnManager().GetTagInfo(p); cm != nil {
+		info.ConnMgrMeta = &api.ConnMgrInfo{
+			FirstSeen: cm.FirstSeen,
+			Value:     cm.Value,
+			Tags:      cm.Tags,
+			Conns:     cm.Conns,
+		}
 	}
 
 	return info, nil
