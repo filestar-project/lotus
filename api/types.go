@@ -107,3 +107,10 @@ func NewDataTransferChannel(hostID peer.ID, channelState datatransfer.ChannelSta
 	}
 	return channel
 }
+
+type ExtendedPeerInfo struct {
+	ID        peer.ID
+	Agent     string
+	Addrs     []string
+	Protocols []string
+}

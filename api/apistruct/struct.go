@@ -61,6 +61,7 @@ type CommonStruct struct {
 		NetBandwidthStatsByPeer     func(ctx context.Context) (map[string]metrics.Stats, error)      `perm:"read"`
 		NetBandwidthStatsByProtocol func(ctx context.Context) (map[protocol.ID]metrics.Stats, error) `perm:"read"`
 		NetAgentVersion             func(ctx context.Context, p peer.ID) (string, error)             `perm:"read"`
+		NetPeerInfo                 func(context.Context, peer.ID) (*api.ExtendedPeerInfo, error)    `perm:"read"`
 
 		ID      func(context.Context) (peer.ID, error)     `perm:"read"`
 		Version func(context.Context) (api.Version, error) `perm:"read"`
@@ -519,6 +520,10 @@ func (c *CommonStruct) NetBandwidthStatsByProtocol(ctx context.Context) (map[pro
 
 func (c *CommonStruct) NetAgentVersion(ctx context.Context, p peer.ID) (string, error) {
 	return c.Internal.NetAgentVersion(ctx, p)
+}
+
+func (c *CommonStruct) NetPeerInfo(ctx context.Context, p peer.ID) (*api.ExtendedPeerInfo, error) {
+	return c.Internal.NetPeerInfo(ctx, p)
 }
 
 // ID implements API.ID
