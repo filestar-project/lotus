@@ -85,7 +85,7 @@ func (t *testWorker) SealPreCommit1(ctx context.Context, sector storage.SectorRe
 	})
 }
 
-func (t *testWorker) Fetch(ctx context.Context, sector storage.SectorRef, fileType storiface.SectorFileType, ptype storiface.PathType, am storiface.AcquireMode) (storiface.CallID, error) {
+func (t *testWorker) Fetch(ctx context.Context, sector storage.SectorRef, fileType storiface.SectorFileType, ptype storiface.PathType, am storiface.AcquireMode, useSharedStorage bool) (storiface.CallID, error) {
 	return t.asyncCall(sector, func(ci storiface.CallID) {
 		if err := t.ret.ReturnFetch(ctx, ci, ""); err != nil {
 			log.Error(err)

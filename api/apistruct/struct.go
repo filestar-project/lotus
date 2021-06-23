@@ -273,7 +273,7 @@ type FullNodeStruct struct {
 		PaychVoucherList            func(context.Context, address.Address) ([]*paych.SignedVoucher, error)                                    `perm:"write"`
 		PaychVoucherSubmit          func(context.Context, address.Address, *paych.SignedVoucher, []byte, []byte) (cid.Cid, error)             `perm:"sign"`
 
-		CreateBackup  func(ctx context.Context, fpath string) error                                                                      `perm:"admin"`
+		CreateBackup  func(ctx context.Context, fpath string) error                                                                                           `perm:"admin"`
 		CheckProvable func(ctx context.Context, pp abi.RegisteredPoStProof, sectors []storage.SectorRef, expensive bool) (map[abi.SectorNumber]string, error) `perm:"admin"`
 	}
 }
@@ -394,10 +394,10 @@ type WorkerStruct struct {
 		SealCommit2     func(ctx context.Context, sector storage.SectorRef, c1o storage.Commit1Out) (storiface.CallID, error)                                                                                         `perm:"admin"`
 		FinalizeSector  func(ctx context.Context, sector storage.SectorRef, keepUnsealed []storage.Range) (storiface.CallID, error)                                                                                   `perm:"admin"`
 		ReleaseUnsealed func(ctx context.Context, sector storage.SectorRef, safeToFree []storage.Range) (storiface.CallID, error)                                                                                     `perm:"admin"`
-		MoveStorage     func(ctx context.Context, sector storage.SectorRef, types storiface.SectorFileType) (storiface.CallID, error)                                                                                 `perm:"admin"`
+		MoveStorage     func(ctx context.Context, sector storage.SectorRef, types storiface.SectorFileType, useSharedStorage bool) (storiface.CallID, error)                                                          `perm:"admin"`
 		UnsealPiece     func(context.Context, storage.SectorRef, storiface.UnpaddedByteIndex, abi.UnpaddedPieceSize, abi.SealRandomness, cid.Cid) (storiface.CallID, error)                                           `perm:"admin"`
 		ReadPiece       func(context.Context, io.Writer, storage.SectorRef, storiface.UnpaddedByteIndex, abi.UnpaddedPieceSize) (storiface.CallID, error)                                                             `perm:"admin"`
-		Fetch           func(context.Context, storage.SectorRef, storiface.SectorFileType, storiface.PathType, storiface.AcquireMode) (storiface.CallID, error)                                                       `perm:"admin"`
+		Fetch           func(context.Context, storage.SectorRef, storiface.SectorFileType, storiface.PathType, storiface.AcquireMode, bool) (storiface.CallID, error)                                                 `perm:"admin"`
 
 		Remove          func(ctx context.Context, sector abi.SectorID) error `perm:"admin"`
 		StorageAddLocal func(ctx context.Context, path string) error         `perm:"admin"`
@@ -1595,8 +1595,8 @@ func (w *WorkerStruct) ReleaseUnsealed(ctx context.Context, sector storage.Secto
 	return w.Internal.ReleaseUnsealed(ctx, sector, safeToFree)
 }
 
-func (w *WorkerStruct) MoveStorage(ctx context.Context, sector storage.SectorRef, types storiface.SectorFileType) (storiface.CallID, error) {
-	return w.Internal.MoveStorage(ctx, sector, types)
+func (w *WorkerStruct) MoveStorage(ctx context.Context, sector storage.SectorRef, types storiface.SectorFileType, useSharedStorage bool) (storiface.CallID, error) {
+	return w.Internal.MoveStorage(ctx, sector, types, useSharedStorage)
 }
 
 func (w *WorkerStruct) UnsealPiece(ctx context.Context, sector storage.SectorRef, offset storiface.UnpaddedByteIndex, size abi.UnpaddedPieceSize, ticket abi.SealRandomness, c cid.Cid) (storiface.CallID, error) {
@@ -1607,8 +1607,8 @@ func (w *WorkerStruct) ReadPiece(ctx context.Context, sink io.Writer, sector sto
 	return w.Internal.ReadPiece(ctx, sink, sector, offset, size)
 }
 
-func (w *WorkerStruct) Fetch(ctx context.Context, id storage.SectorRef, fileType storiface.SectorFileType, ptype storiface.PathType, am storiface.AcquireMode) (storiface.CallID, error) {
-	return w.Internal.Fetch(ctx, id, fileType, ptype, am)
+func (w *WorkerStruct) Fetch(ctx context.Context, id storage.SectorRef, fileType storiface.SectorFileType, ptype storiface.PathType, am storiface.AcquireMode, useSharedStorage bool) (storiface.CallID, error) {
+	return w.Internal.Fetch(ctx, id, fileType, ptype, am, useSharedStorage)
 }
 
 func (w *WorkerStruct) Remove(ctx context.Context, sector abi.SectorID) error {

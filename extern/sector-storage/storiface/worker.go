@@ -84,10 +84,10 @@ type WorkerCalls interface {
 	SealCommit2(ctx context.Context, sector storage.SectorRef, c1o storage.Commit1Out) (CallID, error)
 	FinalizeSector(ctx context.Context, sector storage.SectorRef, keepUnsealed []storage.Range) (CallID, error)
 	ReleaseUnsealed(ctx context.Context, sector storage.SectorRef, safeToFree []storage.Range) (CallID, error)
-	MoveStorage(ctx context.Context, sector storage.SectorRef, types SectorFileType) (CallID, error)
+	MoveStorage(ctx context.Context, sector storage.SectorRef, types SectorFileType, useSharedStorage bool) (CallID, error)
 	UnsealPiece(context.Context, storage.SectorRef, UnpaddedByteIndex, abi.UnpaddedPieceSize, abi.SealRandomness, cid.Cid) (CallID, error)
 	ReadPiece(context.Context, io.Writer, storage.SectorRef, UnpaddedByteIndex, abi.UnpaddedPieceSize) (CallID, error)
-	Fetch(context.Context, storage.SectorRef, SectorFileType, PathType, AcquireMode) (CallID, error)
+	Fetch(context.Context, storage.SectorRef, SectorFileType, PathType, AcquireMode, bool) (CallID, error)
 }
 
 type WorkerReturn interface {

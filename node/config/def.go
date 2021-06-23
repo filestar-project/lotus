@@ -2,12 +2,10 @@ package config
 
 import (
 	"encoding"
-	"time"
-
-	"github.com/ipfs/go-cid"
-
 	"github.com/filecoin-project/lotus/chain/types"
 	sectorstorage "github.com/filecoin-project/lotus/extern/sector-storage"
+	"github.com/ipfs/go-cid"
+	"time"
 )
 
 // Common is common config between full node and miner
@@ -181,6 +179,7 @@ func DefaultStorageMiner() *StorageMiner {
 			// Default to 10 - tcp should still be able to figure this out, and
 			// it's the ratio between 10gbit / 1gbit
 			ParallelFetchLimit: 10,
+			UseSharedStorage:   false,
 		},
 
 		Dealmaking: DealmakingConfig{

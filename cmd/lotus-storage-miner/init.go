@@ -453,6 +453,7 @@ func storageMinerInit(ctx context.Context, cctx *cli.Context, api lapi.FullNode,
 				AllowPreCommit2:    true,
 				AllowCommit:        true,
 				AllowUnseal:        true,
+				UseSharedStorage:   false,
 			}, nil, sa, wsts, smsts)
 			if err != nil {
 				return err
