@@ -1,8 +1,40 @@
 # Lotus changelog
 
-# 1.1.3 / 2020-11-13
+# 1.3.2
 
-This is an optional release of Lotus that upgrades Lotus dependencies, and includes many performance enhancements, bugfixes, and UX improvements.
+This is an optional release of Filestar that upgrades Lotus dependencies, and includes many performance enhancements, bugfixes, and UX improvements.
+
+## Changes
+
+### bug fix
+* fix badger double open on `daemon --import-snapshot`; chainstore lifecycle (https://github.com/filestar-project/lotus/commit/0a0273f6771187dd9f6d50581e11c0bc457767bf)
+* update bitswap to fix an initialization race that could panic (https://github.com/filestar-project/lotus/commit/96029e90f99475e307f4369bb887af6ed684feeb)
+* upgrade go-data-transfer to fix cid recording issue (https://github.com/filestar-project/lotus/commit/2c087bc97042b3185c307d3a79ed5aae374132d4)
+* Fix MaxSealingSectrosForDeals getting reset to 0 (https://github.com/filestar-project/lotus/commit/66bf77d796ec08b2663e1937049c6dbb06dd4dce)
+* fix get sector nil pointer bug (https://github.com/filestar-project/lotus/commit/cbd4eb86a177a9f79cf5688ceadcf514bfe7fa10)
+* storagefsm: Fix expired ticket retry loop (https://github.com/filestar-project/lotus/commit/bda65cc765495491ddc0c7e199918e8fbbe762a4)
+* Fix actor not found in chain inspect-usage (https://github.com/filestar-project/lotus/commit/f1bfd7900910157d0302777c59c59839a66d36e6)
+* fix wallet delete address where address is default (https://github.com/filestar-project/lotus/commit/727eb16df9167a14b25f22a5bf465e68340b5754)
+* Fix helptext for verified-deal default in client deal (https://github.com/filestar-project/lotus/commit/e3ee92646649bf3b6da134715bd989f048fe9ba0)
+* fix: avoid potential hang when starting event listener (https://github.com/filestar-project/lotus/commit/8ddbbb61f0621a24494e2a1e522a51391297b8dc)
+* remove old cache before SealPreCommitPhase2 (https://github.com/filestar-project/lotus/commit/6193a6094076e100db6500c13551d5e73d4eaca8)
+* ipfsbstore: Fix has for non-existing blocks (https://github.com/filestar-project/lotus/commit/4c9c0963e7bfd57dc93bf41ff42141f6c93de8d3)
+* Update go-jsonrpc fixing websocket reconnecting (https://github.com/filestar-project/lotus/commit/26b4e37641d028df6cba5a045ad49f5a4b3db00e)
+
+### improvements
+* Speed up worker key retrieval (https://github.com/filestar-project/lotus/commit/d0177d521ce628806ae1154c25776a02c50594d2)
+* Check (pre)commit receipt before other checks in failed states (https://github.com/filestar-project/lotus/commit/a84fa93e48746f2c7e5928288c006dd6b0b80573)
+* wdpost: Retry proofs if we generate an incorrect one (https://github.com/filestar-project/lotus/commit/b0567537d0e14e6114d123a6598f8b05614356f6)
+* Allow multisigs to be set as miner owner address (https://github.com/filestar-project/lotus/commit/aa639cd1efa436a58035519258b83080e03a6039)
+
+### cmd/api
+* support `--by-ping` for `client list-asks` (https://github.com/filestar-project/lotus/commit/cca6152b92e471ef0703aad859b6ecd0933eda6e)
+* support `--slow` for `lotus-miner proving check` (https://github.com/filestar-project/lotus/commit/06c4c1bd361cbfab0d34c44537d37c91e3f10096)
+
+
+# 1.3.1 / 2021-6-10
+
+This is an optional release of Filestar that upgrades Lotus dependencies, and includes many performance enhancements, bugfixes, and UX improvements.
 
 ## Highlights
 

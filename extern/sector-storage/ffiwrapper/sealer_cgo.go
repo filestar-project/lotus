@@ -6,9 +6,11 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"fmt"
 	"io"
 	"math/bits"
 	"os"
+	"path/filepath"
 	"runtime"
 
 	"github.com/ipfs/go-cid"
@@ -479,6 +481,18 @@ func (sb *Sealer) SealPreCommit2(ctx context.Context, sector storage.SectorRef, 
 		return storage.SectorCids{}, xerrors.Errorf("acquiring sector paths: %w", err)
 	}
 	defer done()
+
+	for _, pattern := range []string{"*-tree-r-*", "*-tree-c-*"} {
+		files, err := filepath.Glob(fmt.Sprintf("%s/%s", paths.Cache, pattern))
+		if err != nil {
+			return storage.SectorCids{}, xerrors.Errorf("glob %s: %w", pattern, err)
+		}
+		for _, f := range files {
+			if err := os.Remove(f); err != nil {
+				return storage.SectorCids{}, xerrors.Errorf("remove %s: %w", f, err)
+			}
+		}
+	}
 
 	sealedCID, unsealedCID, err := ffi.SealPreCommitPhase2(phase1Out, paths.Cache, paths.Sealed)
 	if err != nil {

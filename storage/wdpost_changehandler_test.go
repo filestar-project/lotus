@@ -208,7 +208,7 @@ func TestChangeHandlerBasic(t *testing.T) {
 
 	// Trigger a head change
 	currentEpoch := abi.ChainEpoch(1)
-	go triggerHeadAdvance(t, s, currentEpoch)
+	go triggerHeadAdvance(t, s, currentEpoch+ChallengeConfidence)
 
 	// Should start proving
 	<-s.ch.proveHdlr.processedHeadChanges
@@ -229,7 +229,7 @@ func TestChangeHandlerBasic(t *testing.T) {
 
 	// Move to the correct height to submit the proof
 	currentEpoch = 1 + SubmitConfidence
-	go triggerHeadAdvance(t, s, currentEpoch)
+	go triggerHeadAdvance(t, s, currentEpoch+ChallengeConfidence)
 
 	// Should move to submitting state
 	<-s.ch.submitHdlr.processedHeadChanges
@@ -424,7 +424,7 @@ func TestChangeHandlerStartProvingNextDeadline(t *testing.T) {
 	// the next deadline
 	go func() {
 		di = nextDeadline(di)
-		currentEpoch = di.Challenge
+		currentEpoch = di.Challenge + ChallengeConfidence
 		triggerHeadAdvance(t, s, currentEpoch)
 	}()
 
@@ -446,7 +446,7 @@ func TestChangeHandlerProvingRounds(t *testing.T) {
 	for currentEpoch := abi.ChainEpoch(1); currentEpoch < miner.WPoStChallengeWindow*5; currentEpoch++ {
 		// Trigger a head change
 		di := mock.getDeadline(currentEpoch)
-		go triggerHeadAdvance(t, s, currentEpoch)
+		go triggerHeadAdvance(t, s, currentEpoch+ChallengeConfidence)
 
 		// Wait for prover to process head change
 		<-s.ch.proveHdlr.processedHeadChanges
@@ -913,7 +913,7 @@ func TestChangeHandlerSubmitRevertTwoEpochs(t *testing.T) {
 
 	// Move to the challenge epoch for the next deadline
 	diE2 := nextDeadline(diE1)
-	currentEpoch = diE2.Challenge
+	currentEpoch = diE2.Challenge + ChallengeConfidence
 	go triggerHeadAdvance(t, s, currentEpoch)
 
 	// Should move to submitting state for epoch 1
@@ -1014,7 +1014,7 @@ func TestChangeHandlerSubmitRevertAdvanceLess(t *testing.T) {
 
 	// Move to the challenge epoch for the next deadline
 	diE2 := nextDeadline(diE1)
-	currentEpoch = diE2.Challenge
+	currentEpoch = diE2.Challenge + ChallengeConfidence
 	go triggerHeadAdvance(t, s, currentEpoch)
 
 	// Should move to submitting state for epoch 1

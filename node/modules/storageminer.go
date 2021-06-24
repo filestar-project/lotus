@@ -182,7 +182,7 @@ func StorageMiner(fc config.MinerFeeConfig) func(params StorageMinerParams) (*st
 
 		ctx := helpers.LifecycleCtx(mctx, lc)
 
-		fps, err := storage.NewWindowedPoStScheduler(api, fc, sealer, sealer, j, maddr)
+		fps, err := storage.NewWindowedPoStScheduler(api, fc, sealer, verif, sealer, j, maddr)
 		if err != nil {
 			return nil, err
 		}
@@ -257,19 +257,19 @@ func HandleMigrateProviderFunds(lc fx.Lifecycle, ds dtypes.MetadataDS, node api.
 			}
 			ts, err := node.ChainHead(ctx)
 			if err != nil {
-				log.Errorf("provider funds migration - getting chain head: %w", err)
+				log.Errorf("provider funds migration - getting chain head: %v", err)
 				return nil
 			}
 
 			mi, err := node.StateMinerInfo(ctx, address.Address(minerAddress), ts.Key())
 			if err != nil {
-				log.Errorf("provider funds migration - getting miner info %s: %w", minerAddress, err)
+				log.Errorf("provider funds migration - getting miner info %s: %v", minerAddress, err)
 				return nil
 			}
 
 			_, err = node.MarketReserveFunds(ctx, mi.Worker, address.Address(minerAddress), value)
 			if err != nil {
-				log.Errorf("provider funds migration - reserving funds (wallet %s, addr %s, funds %d): %w",
+				log.Errorf("provider funds migration - reserving funds (wallet %s, addr %s, funds %d): %v",
 					mi.Worker, minerAddress, value, err)
 				return nil
 			}
@@ -429,11 +429,15 @@ func NewStorageAsk(ctx helpers.MetricsCtx, fapi lapi.FullNode, ds dtypes.Metadat
 
 func BasicDealFilter(user dtypes.StorageDealFilter) func(onlineOk dtypes.ConsiderOnlineStorageDealsConfigFunc,
 	offlineOk dtypes.ConsiderOfflineStorageDealsConfigFunc,
+	verifiedOk dtypes.ConsiderVerifiedStorageDealsConfigFunc,
+	unverifiedOk dtypes.ConsiderUnverifiedStorageDealsConfigFunc,
 	blocklistFunc dtypes.StorageDealPieceCidBlocklistConfigFunc,
 	expectedSealTimeFunc dtypes.GetExpectedSealDurationFunc,
 	spn storagemarket.StorageProviderNode) dtypes.StorageDealFilter {
 	return func(onlineOk dtypes.ConsiderOnlineStorageDealsConfigFunc,
 		offlineOk dtypes.ConsiderOfflineStorageDealsConfigFunc,
+		verifiedOk dtypes.ConsiderVerifiedStorageDealsConfigFunc,
+		unverifiedOk dtypes.ConsiderUnverifiedStorageDealsConfigFunc,
 		blocklistFunc dtypes.StorageDealPieceCidBlocklistConfigFunc,
 		expectedSealTimeFunc dtypes.GetExpectedSealDurationFunc,
 		spn storagemarket.StorageProviderNode) dtypes.StorageDealFilter {
@@ -457,6 +461,26 @@ func BasicDealFilter(user dtypes.StorageDealFilter) func(onlineOk dtypes.Conside
 			if deal.Ref != nil && deal.Ref.TransferType == storagemarket.TTManual && !b {
 				log.Warnf("offline storage deal consideration disabled; rejecting storage deal proposal from client: %s", deal.Client.String())
 				return false, "miner is not accepting offline storage deals", nil
+			}
+
+			b, err = verifiedOk()
+			if err != nil {
+				return false, "miner error", err
+			}
+
+			if deal.Proposal.VerifiedDeal && !b {
+				log.Warnf("verified storage deal consideration disabled; rejecting storage deal proposal from client: %s", deal.Client.String())
+				return false, "miner is not accepting verified storage deals", nil
+			}
+
+			b, err = unverifiedOk()
+			if err != nil {
+				return false, "miner error", err
+			}
+
+			if !deal.Proposal.VerifiedDeal && !b {
+				log.Warnf("unverified storage deal consideration disabled; rejecting storage deal proposal from client: %s", deal.Client.String())
+				return false, "miner is not accepting unverified storage deals", nil
 			}
 
 			blocklist, err := blocklistFunc()
@@ -706,6 +730,42 @@ func NewSetConsiderOfflineRetrievalDealsConfigFunc(r repo.LockedRepo) (dtypes.Se
 	}, nil
 }
 
+func NewConsiderVerifiedStorageDealsConfigFunc(r repo.LockedRepo) (dtypes.ConsiderVerifiedStorageDealsConfigFunc, error) {
+	return func() (out bool, err error) {
+		err = readCfg(r, func(cfg *config.StorageMiner) {
+			out = cfg.Dealmaking.ConsiderVerifiedStorageDeals
+		})
+		return
+	}, nil
+}
+
+func NewSetConsideringVerifiedStorageDealsFunc(r repo.LockedRepo) (dtypes.SetConsiderVerifiedStorageDealsConfigFunc, error) {
+	return func(b bool) (err error) {
+		err = mutateCfg(r, func(cfg *config.StorageMiner) {
+			cfg.Dealmaking.ConsiderVerifiedStorageDeals = b
+		})
+		return
+	}, nil
+}
+
+func NewConsiderUnverifiedStorageDealsConfigFunc(r repo.LockedRepo) (dtypes.ConsiderUnverifiedStorageDealsConfigFunc, error) {
+	return func() (out bool, err error) {
+		err = readCfg(r, func(cfg *config.StorageMiner) {
+			out = cfg.Dealmaking.ConsiderUnverifiedStorageDeals
+		})
+		return
+	}, nil
+}
+
+func NewSetConsideringUnverifiedStorageDealsFunc(r repo.LockedRepo) (dtypes.SetConsiderUnverifiedStorageDealsConfigFunc, error) {
+	return func(b bool) (err error) {
+		err = mutateCfg(r, func(cfg *config.StorageMiner) {
+			cfg.Dealmaking.ConsiderUnverifiedStorageDeals = b
+		})
+		return
+	}, nil
+}
+
 func NewSetSealConfigFunc(r repo.LockedRepo) (dtypes.SetSealingConfigFunc, error) {
 	return func(cfg sealiface.Config) (err error) {
 		err = mutateCfg(r, func(c *config.StorageMiner) {
@@ -714,6 +774,7 @@ func NewSetSealConfigFunc(r repo.LockedRepo) (dtypes.SetSealingConfigFunc, error
 				MaxSealingSectors:         cfg.MaxSealingSectors,
 				MaxSealingSectorsForDeals: cfg.MaxSealingSectorsForDeals,
 				WaitDealsDelay:            config.Duration(cfg.WaitDealsDelay),
+				AlwaysKeepUnsealedCopy:    cfg.AlwaysKeepUnsealedCopy,
 			}
 		})
 		return
@@ -728,6 +789,7 @@ func NewGetSealConfigFunc(r repo.LockedRepo) (dtypes.GetSealingConfigFunc, error
 				MaxSealingSectors:         cfg.Sealing.MaxSealingSectors,
 				MaxSealingSectorsForDeals: cfg.Sealing.MaxSealingSectorsForDeals,
 				WaitDealsDelay:            time.Duration(cfg.Sealing.WaitDealsDelay),
+				AlwaysKeepUnsealedCopy:    cfg.Sealing.AlwaysKeepUnsealedCopy,
 			}
 		})
 		return

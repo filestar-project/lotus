@@ -273,10 +273,11 @@ var DaemonCmd = &cli.Command{
 		stop, err := node.New(ctx,
 			node.FullAPI(&api, node.Lite(isLite)),
 
-			node.Override(new(dtypes.Bootstrapper), isBootstrapper),
-			node.Override(new(dtypes.ShutdownChan), shutdownChan),
 			node.Online(),
 			node.Repo(r),
+
+			node.Override(new(dtypes.Bootstrapper), isBootstrapper),
+			node.Override(new(dtypes.ShutdownChan), shutdownChan),
 
 			genesis,
 			liteModeDeps,
@@ -373,7 +374,7 @@ func ImportChain(r repo.Repo, fname string, snapshot bool) (err error) {
 		defer resp.Body.Close() //nolint:errcheck
 
 		if resp.StatusCode != http.StatusOK {
-			return xerrors.Errorf("non-200 response: %d", resp.StatusCode)
+			return xerrors.Errorf("fetching chain CAR failed with non-200 response: %d", resp.StatusCode)
 		}
 
 		rd = resp.Body

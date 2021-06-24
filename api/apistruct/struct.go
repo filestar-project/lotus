@@ -61,6 +61,7 @@ type CommonStruct struct {
 		NetBandwidthStatsByPeer     func(ctx context.Context) (map[string]metrics.Stats, error)      `perm:"read"`
 		NetBandwidthStatsByProtocol func(ctx context.Context) (map[protocol.ID]metrics.Stats, error) `perm:"read"`
 		NetAgentVersion             func(ctx context.Context, p peer.ID) (string, error)             `perm:"read"`
+		NetPeerInfo                 func(context.Context, peer.ID) (*api.ExtendedPeerInfo, error)    `perm:"read"`
 
 		ID      func(context.Context) (peer.ID, error)     `perm:"read"`
 		Version func(context.Context) (api.Version, error) `perm:"read"`
@@ -239,6 +240,7 @@ type FullNodeStruct struct {
 		MsigGetAvailableBalance func(context.Context, address.Address, types.TipSetKey) (types.BigInt, error)                                                                    `perm:"read"`
 		MsigGetVestingSchedule  func(context.Context, address.Address, types.TipSetKey) (api.MsigVesting, error)                                                                 `perm:"read"`
 		MsigGetVested           func(context.Context, address.Address, types.TipSetKey, types.TipSetKey) (types.BigInt, error)                                                   `perm:"read"`
+		MsigGetPending          func(context.Context, address.Address, types.TipSetKey) ([]*api.MsigTransaction, error)                                                          `perm:"read"`
 		MsigCreate              func(context.Context, uint64, []address.Address, abi.ChainEpoch, types.BigInt, address.Address, types.BigInt) (cid.Cid, error)                   `perm:"sign"`
 		MsigPropose             func(context.Context, address.Address, address.Address, types.BigInt, address.Address, uint64, []byte) (cid.Cid, error)                          `perm:"sign"`
 		MsigApprove             func(context.Context, address.Address, uint64, address.Address) (cid.Cid, error)                                                                 `perm:"sign"`
@@ -309,6 +311,8 @@ type StorageMinerStruct struct {
 
 		SectorsStatus                 func(ctx context.Context, sid abi.SectorNumber, showOnChainInfo bool) (api.SectorInfo, error) `perm:"read"`
 		SectorsList                   func(context.Context) ([]abi.SectorNumber, error)                                             `perm:"read"`
+		SectorsListInStates           func(context.Context, []api.SectorState) ([]abi.SectorNumber, error)                          `perm:"read"`
+		SectorsSummary                func(ctx context.Context) (map[api.SectorState]int, error)                                    `perm:"read"`
 		SectorsRefs                   func(context.Context) (map[string][]api.SealedRef, error)                                     `perm:"read"`
 		SectorStartSealing            func(context.Context, abi.SectorNumber) error                                                 `perm:"write"`
 		SectorSetSealDelay            func(context.Context, time.Duration) error                                                    `perm:"write"`
@@ -351,18 +355,22 @@ type StorageMinerStruct struct {
 		StorageLock          func(ctx context.Context, sector abi.SectorID, read storiface.SectorFileType, write storiface.SectorFileType) error                          `perm:"admin"`
 		StorageTryLock       func(ctx context.Context, sector abi.SectorID, read storiface.SectorFileType, write storiface.SectorFileType) (bool, error)                  `perm:"admin"`
 
-		DealsImportData                       func(ctx context.Context, dealPropCid cid.Cid, file string) error `perm:"write"`
-		DealsList                             func(ctx context.Context) ([]api.MarketDeal, error)               `perm:"read"`
-		DealsConsiderOnlineStorageDeals       func(context.Context) (bool, error)                               `perm:"read"`
-		DealsSetConsiderOnlineStorageDeals    func(context.Context, bool) error                                 `perm:"admin"`
-		DealsConsiderOnlineRetrievalDeals     func(context.Context) (bool, error)                               `perm:"read"`
-		DealsSetConsiderOnlineRetrievalDeals  func(context.Context, bool) error                                 `perm:"admin"`
-		DealsConsiderOfflineStorageDeals      func(context.Context) (bool, error)                               `perm:"read"`
-		DealsSetConsiderOfflineStorageDeals   func(context.Context, bool) error                                 `perm:"admin"`
-		DealsConsiderOfflineRetrievalDeals    func(context.Context) (bool, error)                               `perm:"read"`
-		DealsSetConsiderOfflineRetrievalDeals func(context.Context, bool) error                                 `perm:"admin"`
-		DealsPieceCidBlocklist                func(context.Context) ([]cid.Cid, error)                          `perm:"read"`
-		DealsSetPieceCidBlocklist             func(context.Context, []cid.Cid) error                            `perm:"admin"`
+		DealsImportData                        func(ctx context.Context, dealPropCid cid.Cid, file string) error `perm:"write"`
+		DealsList                              func(ctx context.Context) ([]api.MarketDeal, error)               `perm:"read"`
+		DealsConsiderOnlineStorageDeals        func(context.Context) (bool, error)                               `perm:"read"`
+		DealsSetConsiderOnlineStorageDeals     func(context.Context, bool) error                                 `perm:"admin"`
+		DealsConsiderOnlineRetrievalDeals      func(context.Context) (bool, error)                               `perm:"read"`
+		DealsSetConsiderOnlineRetrievalDeals   func(context.Context, bool) error                                 `perm:"admin"`
+		DealsConsiderOfflineStorageDeals       func(context.Context) (bool, error)                               `perm:"read"`
+		DealsSetConsiderOfflineStorageDeals    func(context.Context, bool) error                                 `perm:"admin"`
+		DealsConsiderOfflineRetrievalDeals     func(context.Context) (bool, error)                               `perm:"read"`
+		DealsSetConsiderOfflineRetrievalDeals  func(context.Context, bool) error                                 `perm:"admin"`
+		DealsConsiderVerifiedStorageDeals      func(context.Context) (bool, error)                               `perm:"read"`
+		DealsSetConsiderVerifiedStorageDeals   func(context.Context, bool) error                                 `perm:"admin"`
+		DealsConsiderUnverifiedStorageDeals    func(context.Context) (bool, error)                               `perm:"read"`
+		DealsSetConsiderUnverifiedStorageDeals func(context.Context, bool) error                                 `perm:"admin"`
+		DealsPieceCidBlocklist                 func(context.Context) ([]cid.Cid, error)                          `perm:"read"`
+		DealsSetPieceCidBlocklist              func(context.Context, []cid.Cid) error                            `perm:"admin"`
 
 		StorageAddLocal func(ctx context.Context, path string) error `perm:"admin"`
 
@@ -426,6 +434,7 @@ type GatewayStruct struct {
 		MpoolPush                         func(ctx context.Context, sm *types.SignedMessage) (cid.Cid, error)
 		MsigGetAvailableBalance           func(ctx context.Context, addr address.Address, tsk types.TipSetKey) (types.BigInt, error)
 		MsigGetVested                     func(ctx context.Context, addr address.Address, start types.TipSetKey, end types.TipSetKey) (types.BigInt, error)
+		MsigGetPending                    func(context.Context, address.Address, types.TipSetKey) ([]*api.MsigTransaction, error)
 		StateAccountKey                   func(ctx context.Context, addr address.Address, tsk types.TipSetKey) (address.Address, error)
 		StateDealProviderCollateralBounds func(ctx context.Context, size abi.PaddedPieceSize, verified bool, tsk types.TipSetKey) (api.DealCollateralBounds, error)
 		StateGetActor                     func(ctx context.Context, actor address.Address, ts types.TipSetKey) (*types.Actor, error)
@@ -511,6 +520,10 @@ func (c *CommonStruct) NetBandwidthStatsByProtocol(ctx context.Context) (map[pro
 
 func (c *CommonStruct) NetAgentVersion(ctx context.Context, p peer.ID) (string, error) {
 	return c.Internal.NetAgentVersion(ctx, p)
+}
+
+func (c *CommonStruct) NetPeerInfo(ctx context.Context, p peer.ID) (*api.ExtendedPeerInfo, error) {
+	return c.Internal.NetPeerInfo(ctx, p)
 }
 
 // ID implements API.ID
@@ -1121,6 +1134,10 @@ func (c *FullNodeStruct) MsigGetVested(ctx context.Context, a address.Address, s
 	return c.Internal.MsigGetVested(ctx, a, sTsk, eTsk)
 }
 
+func (c *FullNodeStruct) MsigGetPending(ctx context.Context, a address.Address, tsk types.TipSetKey) ([]*api.MsigTransaction, error) {
+	return c.Internal.MsigGetPending(ctx, a, tsk)
+}
+
 func (c *FullNodeStruct) MsigCreate(ctx context.Context, req uint64, addrs []address.Address, duration abi.ChainEpoch, val types.BigInt, src address.Address, gp types.BigInt) (cid.Cid, error) {
 	return c.Internal.MsigCreate(ctx, req, addrs, duration, val, src, gp)
 }
@@ -1275,6 +1292,14 @@ func (c *StorageMinerStruct) SectorsStatus(ctx context.Context, sid abi.SectorNu
 // List all staged sectors
 func (c *StorageMinerStruct) SectorsList(ctx context.Context) ([]abi.SectorNumber, error) {
 	return c.Internal.SectorsList(ctx)
+}
+
+func (c *StorageMinerStruct) SectorsListInStates(ctx context.Context, states []api.SectorState) ([]abi.SectorNumber, error) {
+	return c.Internal.SectorsListInStates(ctx, states)
+}
+
+func (c *StorageMinerStruct) SectorsSummary(ctx context.Context) (map[api.SectorState]int, error) {
+	return c.Internal.SectorsSummary(ctx)
 }
 
 func (c *StorageMinerStruct) SectorsRefs(ctx context.Context) (map[string][]api.SealedRef, error) {
@@ -1525,6 +1550,22 @@ func (c *StorageMinerStruct) DealsSetConsiderOfflineRetrievalDeals(ctx context.C
 	return c.Internal.DealsSetConsiderOfflineRetrievalDeals(ctx, b)
 }
 
+func (c *StorageMinerStruct) DealsConsiderVerifiedStorageDeals(ctx context.Context) (bool, error) {
+	return c.Internal.DealsConsiderVerifiedStorageDeals(ctx)
+}
+
+func (c *StorageMinerStruct) DealsSetConsiderVerifiedStorageDeals(ctx context.Context, b bool) error {
+	return c.Internal.DealsSetConsiderVerifiedStorageDeals(ctx, b)
+}
+
+func (c *StorageMinerStruct) DealsConsiderUnverifiedStorageDeals(ctx context.Context) (bool, error) {
+	return c.Internal.DealsConsiderUnverifiedStorageDeals(ctx)
+}
+
+func (c *StorageMinerStruct) DealsSetConsiderUnverifiedStorageDeals(ctx context.Context, b bool) error {
+	return c.Internal.DealsSetConsiderUnverifiedStorageDeals(ctx, b)
+}
+
 func (c *StorageMinerStruct) StorageAddLocal(ctx context.Context, path string) error {
 	return c.Internal.StorageAddLocal(ctx, path)
 }
@@ -1685,6 +1726,10 @@ func (g GatewayStruct) MsigGetAvailableBalance(ctx context.Context, addr address
 
 func (g GatewayStruct) MsigGetVested(ctx context.Context, addr address.Address, start types.TipSetKey, end types.TipSetKey) (types.BigInt, error) {
 	return g.Internal.MsigGetVested(ctx, addr, start, end)
+}
+
+func (g GatewayStruct) MsigGetPending(ctx context.Context, addr address.Address, tsk types.TipSetKey) ([]*api.MsigTransaction, error) {
+	return g.Internal.MsigGetPending(ctx, addr, tsk)
 }
 
 func (g GatewayStruct) StateAccountKey(ctx context.Context, addr address.Address, tsk types.TipSetKey) (address.Address, error) {

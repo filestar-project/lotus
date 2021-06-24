@@ -43,6 +43,7 @@ import (
 type StateModuleAPI interface {
 	MsigGetAvailableBalance(ctx context.Context, addr address.Address, tsk types.TipSetKey) (types.BigInt, error)
 	MsigGetVested(ctx context.Context, addr address.Address, start types.TipSetKey, end types.TipSetKey) (types.BigInt, error)
+	MsigGetPending(ctx context.Context, addr address.Address, tsk types.TipSetKey) ([]*api.MsigTransaction, error)
 	StateAccountKey(ctx context.Context, addr address.Address, tsk types.TipSetKey) (address.Address, error)
 	StateDealProviderCollateralBounds(ctx context.Context, size abi.PaddedPieceSize, verified bool, tsk types.TipSetKey) (api.DealCollateralBounds, error)
 	StateGetActor(ctx context.Context, actor address.Address, tsk types.TipSetKey) (*types.Actor, error)
@@ -991,6 +992,40 @@ func (m *StateModule) MsigGetVested(ctx context.Context, addr address.Address, s
 	return types.BigSub(startLk, endLk), nil
 }
 
+func (m *StateModule) MsigGetPending(ctx context.Context, addr address.Address, tsk types.TipSetKey) ([]*api.MsigTransaction, error) {
+	ts, err := m.Chain.GetTipSetFromKey(tsk)
+	if err != nil {
+		return nil, xerrors.Errorf("loading tipset %s: %w", tsk, err)
+	}
+
+	act, err := m.StateManager.LoadActor(ctx, addr, ts)
+	if err != nil {
+		return nil, xerrors.Errorf("failed to load multisig actor: %w", err)
+	}
+	msas, err := multisig.Load(m.Chain.Store(ctx), act)
+	if err != nil {
+		return nil, xerrors.Errorf("failed to load multisig actor state: %w", err)
+	}
+
+	var out = []*api.MsigTransaction{}
+	if err := msas.ForEachPendingTxn(func(id int64, txn multisig.Transaction) error {
+		out = append(out, &api.MsigTransaction{
+			ID:     id,
+			To:     txn.To,
+			Value:  txn.Value,
+			Method: txn.Method,
+			Params: txn.Params,
+
+			Approved: txn.Approved,
+		})
+		return nil
+	}); err != nil {
+		return nil, err
+	}
+
+	return out, nil
+}
+
 var initialPledgeNum = types.NewInt(110)
 var initialPledgeDen = types.NewInt(100)
 
@@ -1075,9 +1110,9 @@ func (a *StateAPI) StateMinerInitialPledgeCollateral(ctx context.Context, maddr 
 
 	var sectorWeight abi.StoragePower
 	if act, err := state.GetActor(market.Address); err != nil {
-		return types.EmptyInt, xerrors.Errorf("loading miner actor %s: %w", maddr, err)
+		return types.EmptyInt, xerrors.Errorf("loading market actor: %w", err)
 	} else if s, err := market.Load(store, act); err != nil {
-		return types.EmptyInt, xerrors.Errorf("loading market actor state %s: %w", maddr, err)
+		return types.EmptyInt, xerrors.Errorf("loading market actor state: %w", err)
 	} else if w, vw, err := s.VerifyDealsForActivation(maddr, pci.DealIDs, ts.Height(), pci.Expiration); err != nil {
 		return types.EmptyInt, xerrors.Errorf("verifying deals for activation: %w", err)
 	} else {
@@ -1091,7 +1126,7 @@ func (a *StateAPI) StateMinerInitialPledgeCollateral(ctx context.Context, maddr 
 		pledgeCollateral abi.TokenAmount
 	)
 	if act, err := state.GetActor(power.Address); err != nil {
-		return types.EmptyInt, xerrors.Errorf("loading miner actor: %w", err)
+		return types.EmptyInt, xerrors.Errorf("loading power actor: %w", err)
 	} else if s, err := power.Load(store, act); err != nil {
 		return types.EmptyInt, xerrors.Errorf("loading power actor state: %w", err)
 	} else if p, err := s.TotalPowerSmoothed(); err != nil {
@@ -1105,7 +1140,7 @@ func (a *StateAPI) StateMinerInitialPledgeCollateral(ctx context.Context, maddr 
 
 	rewardActor, err := state.GetActor(reward.Address)
 	if err != nil {
-		return types.EmptyInt, xerrors.Errorf("loading miner actor: %w", err)
+		return types.EmptyInt, xerrors.Errorf("loading reward actor: %w", err)
 	}
 
 	rewardState, err := reward.Load(store, rewardActor)
