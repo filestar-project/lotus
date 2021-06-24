@@ -105,16 +105,16 @@ var ResourceTable = map[sealtasks.TaskType]map[abi.RegisteredSealProof]Resources
 			BaseMinMemory: 10 << 20,
 		},
 		abi.RegisteredSealProof_StackedDrg32GiBV1: Resources{
-			MaxMemory: 64 << 30,
-			MinMemory: 56 << 30,
+			MaxMemory: 72 << 30,
+			MinMemory: 64 << 30,
 
 			MaxParallelism: 1,
 
 			BaseMinMemory: 10 << 20,
 		},
 		abi.RegisteredSealProof_StackedDrg8GiBV1: Resources{
-			MaxMemory: 16 << 30,
-			MinMemory: 14 << 30,
+			MaxMemory: 18 << 30,
+			MinMemory: 16 << 30,
 
 			MaxParallelism: 1,
 
@@ -259,7 +259,7 @@ var ResourceTable = map[sealtasks.TaskType]map[abi.RegisteredSealProof]Resources
 			BaseMinMemory: 64 << 30, // params
 		},
 		abi.RegisteredSealProof_StackedDrg32GiBV1: Resources{
-			MaxMemory: 150 << 30, // TODO: ~30G of this should really be BaseMaxMemory
+			MaxMemory: 180 << 30, // TODO: ~30G of this should really be BaseMaxMemory
 			MinMemory: 30 << 30,
 
 			MaxParallelism: -1,
@@ -268,7 +268,7 @@ var ResourceTable = map[sealtasks.TaskType]map[abi.RegisteredSealProof]Resources
 			BaseMinMemory: 32 << 30, // params
 		},
 		abi.RegisteredSealProof_StackedDrg8GiBV1: Resources{
-			MaxMemory: 38 << 30,
+			MaxMemory: 45 << 30,
 			MinMemory: 8 << 30,
 
 			MaxParallelism: -1,

@@ -24,7 +24,6 @@ import (
 	"github.com/filecoin-project/go-state-types/big"
 
 	sectorstorage "github.com/filecoin-project/lotus/extern/sector-storage"
-	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper"
 	"github.com/filecoin-project/lotus/extern/sector-storage/fsutil"
 	"github.com/filecoin-project/lotus/extern/sector-storage/stores"
 	"github.com/filecoin-project/lotus/extern/sector-storage/storiface"
@@ -38,12 +37,12 @@ import (
 	"github.com/filecoin-project/lotus/node/modules/dtypes"
 	"github.com/filecoin-project/lotus/storage"
 	"github.com/filecoin-project/lotus/storage/sectorblocks"
+	sto "github.com/filecoin-project/specs-storage/storage"
 )
 
 type StorageMinerAPI struct {
 	common.CommonAPI
 
-	ProofsConfig *ffiwrapper.Config
 	SectorBlocks *sectorblocks.SectorBlocks
 
 	PieceStore        dtypes.ProviderPieceStore
@@ -545,8 +544,23 @@ func (sm *StorageMinerAPI) CreateBackup(ctx context.Context, fpath string) error
 	return backup(sm.DS, fpath)
 }
 
-func (sm *StorageMinerAPI) CheckProvable(ctx context.Context, pp abi.RegisteredPoStProof, sectors []abi.SectorID) (map[abi.SectorNumber]string, error) {
-	bad, err := sm.StorageMgr.CheckProvable(ctx, pp, sectors)
+func (sm *StorageMinerAPI) CheckProvable(ctx context.Context, pp abi.RegisteredPoStProof, sectors []sto.SectorRef, expensive bool) (map[abi.SectorNumber]string, error) {
+	var rg storiface.RGetter
+	if expensive {
+		rg = func(ctx context.Context, id abi.SectorID) (cid.Cid, error) {
+			si, err := sm.Miner.GetSectorInfo(id.Number)
+			if err != nil {
+				return cid.Undef, err
+			}
+			if si.CommR == nil {
+				return cid.Undef, xerrors.Errorf("commr is nil")
+			}
+
+			return *si.CommR, nil
+		}
+	}
+
+	bad, err := sm.StorageMgr.CheckProvable(ctx, pp, sectors, rg)
 	if err != nil {
 		return nil, err
 	}

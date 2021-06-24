@@ -433,11 +433,6 @@ func storageMinerInit(ctx context.Context, cctx *cli.Context, api lapi.FullNode,
 				return err
 			}
 
-			spt, err := ffiwrapper.SealProofTypeFromSectorSize(ssize)
-			if err != nil {
-				return err
-			}
-
 			mid, err := address.IDFromAddress(a)
 			if err != nil {
 				return xerrors.Errorf("getting id address: %w", err)
@@ -451,15 +446,14 @@ func storageMinerInit(ctx context.Context, cctx *cli.Context, api lapi.FullNode,
 			wsts := statestore.New(namespace.Wrap(mds, modules.WorkerCallsPrefix))
 			smsts := statestore.New(namespace.Wrap(mds, modules.ManagerWorkPrefix))
 
-			smgr, err := sectorstorage.New(ctx, lr, stores.NewIndex(), &ffiwrapper.Config{
-				SealProofType: spt,
-			}, sectorstorage.SealerConfig{
+			smgr, err := sectorstorage.New(ctx, lr, stores.NewIndex(), sectorstorage.SealerConfig{
 				ParallelFetchLimit: 10,
 				AllowAddPiece:      true,
 				AllowPreCommit1:    true,
 				AllowPreCommit2:    true,
 				AllowCommit:        true,
 				AllowUnseal:        true,
+				UseSharedStorage:   false,
 			}, nil, sa, wsts, smsts)
 			if err != nil {
 				return err
@@ -657,9 +651,14 @@ func createStorageMiner(ctx context.Context, api lapi.FullNode, peerid peer.ID, 
 		}
 	}
 
-	spt, err := ffiwrapper.SealProofTypeFromSectorSize(abi.SectorSize(ssize))
+	nv, err := api.StateNetworkVersion(ctx, types.EmptyTSK)
 	if err != nil {
-		return address.Undef, err
+		return address.Undef, xerrors.Errorf("getting network version: %w", err)
+	}
+
+	spt, err := miner.SealProofTypeFromSectorSize(abi.SectorSize(ssize), nv)
+	if err != nil {
+		return address.Undef, xerrors.Errorf("getting seal proof type: %w", err)
 	}
 
 	params, err := actors.SerializeParams(&power2.CreateMinerParams{

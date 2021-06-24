@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/filecoin-project/go-address"
 	"github.com/filecoin-project/go-state-types/abi"
+	"github.com/filecoin-project/specs-storage/storage"
 	"os"
 	"strconv"
 	"text/tabwriter"
@@ -385,6 +386,10 @@ var provingCheckProvableCmd = &cli.Command{
 			Usage: "print only bad sectors",
 			Value: false,
 		},
+		&cli.BoolFlag{
+			Name:  "slow",
+			Usage: "run slower checks",
+		},
 	},
 	Action: func(cctx *cli.Context) error {
 		if cctx.Args().Len() != 1 {
@@ -441,16 +446,19 @@ var provingCheckProvableCmd = &cli.Command{
 				return err
 			}
 
-			var tocheck []abi.SectorID
+			var tocheck []storage.SectorRef
 			for _, info := range sectorInfos {
 				sectors[info.SectorNumber] = struct{}{}
-				tocheck = append(tocheck, abi.SectorID{
-					Miner:  abi.ActorID(mid),
-					Number: info.SectorNumber,
+				tocheck = append(tocheck, storage.SectorRef{
+					ProofType: info.SealProof,
+					ID: abi.SectorID{
+						Miner:  abi.ActorID(mid),
+						Number: info.SectorNumber,
+					},
 				})
 			}
 
-			bad, err := sapi.CheckProvable(ctx, abi.SealProofInfos[info.SealProofType].WindowPoStProof, tocheck)
+			bad, err := sapi.CheckProvable(ctx, abi.SealProofInfos[info.SealProofType].WindowPoStProof, tocheck, cctx.Bool("slow"))
 			if err != nil {
 				return err
 			}

@@ -3,6 +3,7 @@ package stores
 import (
 	"context"
 	"encoding/json"
+	files "github.com/ipfs/go-ipfs-files"
 	"io/ioutil"
 	"math/bits"
 	"mime"
@@ -12,17 +13,19 @@ import (
 	gopath "path"
 	"path/filepath"
 	"sort"
+	"strings"
 	"sync"
 
 	"github.com/filecoin-project/lotus/extern/sector-storage/fsutil"
 	"github.com/filecoin-project/lotus/extern/sector-storage/storiface"
-	"github.com/filecoin-project/lotus/extern/sector-storage/tarutil"
 
 	"github.com/filecoin-project/go-state-types/abi"
+	"github.com/filecoin-project/specs-storage/storage"
 
 	"github.com/hashicorp/go-multierror"
-	files "github.com/ipfs/go-ipfs-files"
 	"golang.org/x/xerrors"
+
+	"github.com/filecoin-project/lotus/extern/sector-storage/tarutil"
 )
 
 var FetchTempSubdir = "fetching"
@@ -58,7 +61,7 @@ func NewRemote(local *Local, index SectorIndex, auth http.Header, fetchLimit int
 	}
 }
 
-func (r *Remote) AcquireSector(ctx context.Context, s abi.SectorID, ssize abi.SectorSize, existing storiface.SectorFileType, allocate storiface.SectorFileType, pathType storiface.PathType, op storiface.AcquireMode) (storiface.SectorPaths, storiface.SectorPaths, error) {
+func (r *Remote) AcquireSector(ctx context.Context, s storage.SectorRef, existing storiface.SectorFileType, allocate storiface.SectorFileType, pathType storiface.PathType, op storiface.AcquireMode, useSharedStorage bool) (storiface.SectorPaths, storiface.SectorPaths, error) {
 	if existing|allocate != existing^allocate {
 		return storiface.SectorPaths{}, storiface.SectorPaths{}, xerrors.New("can't both find and allocate a sector")
 	}
@@ -66,9 +69,9 @@ func (r *Remote) AcquireSector(ctx context.Context, s abi.SectorID, ssize abi.Se
 	for {
 		r.fetchLk.Lock()
 
-		c, locked := r.fetching[s]
+		c, locked := r.fetching[s.ID]
 		if !locked {
-			r.fetching[s] = make(chan struct{})
+			r.fetching[s.ID] = make(chan struct{})
 			r.fetchLk.Unlock()
 			break
 		}
@@ -85,12 +88,12 @@ func (r *Remote) AcquireSector(ctx context.Context, s abi.SectorID, ssize abi.Se
 
 	defer func() {
 		r.fetchLk.Lock()
-		close(r.fetching[s])
-		delete(r.fetching, s)
+		close(r.fetching[s.ID])
+		delete(r.fetching, s.ID)
 		r.fetchLk.Unlock()
 	}()
 
-	paths, stores, err := r.local.AcquireSector(ctx, s, ssize, existing, allocate, pathType, op)
+	paths, stores, err := r.local.AcquireSector(ctx, s, existing, allocate, pathType, op, useSharedStorage)
 	if err != nil {
 		return storiface.SectorPaths{}, storiface.SectorPaths{}, xerrors.Errorf("local acquire error: %w", err)
 	}
@@ -106,7 +109,7 @@ func (r *Remote) AcquireSector(ctx context.Context, s abi.SectorID, ssize abi.Se
 		}
 	}
 
-	apaths, ids, err := r.local.AcquireSector(ctx, s, ssize, storiface.FTNone, toFetch, pathType, op)
+	apaths, ids, err := r.local.AcquireSector(ctx, s, storiface.FTNone, toFetch, pathType, op, useSharedStorage)
 	if err != nil {
 		return storiface.SectorPaths{}, storiface.SectorPaths{}, xerrors.Errorf("allocate local sector for fetching: %w", err)
 	}
@@ -116,7 +119,7 @@ func (r *Remote) AcquireSector(ctx context.Context, s abi.SectorID, ssize abi.Se
 		odt = storiface.FsOverheadFinalized
 	}
 
-	releaseStorage, err := r.local.Reserve(ctx, s, ssize, toFetch, ids, odt)
+	releaseStorage, err := r.local.Reserve(ctx, s, toFetch, ids, odt)
 	if err != nil {
 		return storiface.SectorPaths{}, storiface.SectorPaths{}, xerrors.Errorf("reserving storage space: %w", err)
 	}
@@ -134,7 +137,7 @@ func (r *Remote) AcquireSector(ctx context.Context, s abi.SectorID, ssize abi.Se
 		dest := storiface.PathByType(apaths, fileType)
 		storageID := storiface.PathByType(ids, fileType)
 
-		url, err := r.acquireFromRemote(ctx, s, fileType, dest)
+		url, err := r.acquireFromRemote(ctx, s.ID, fileType, dest, useSharedStorage)
 		if err != nil {
 			return storiface.SectorPaths{}, storiface.SectorPaths{}, err
 		}
@@ -142,7 +145,7 @@ func (r *Remote) AcquireSector(ctx context.Context, s abi.SectorID, ssize abi.Se
 		storiface.SetPathByType(&paths, fileType, dest)
 		storiface.SetPathByType(&stores, fileType, storageID)
 
-		if err := r.index.StorageDeclareSector(ctx, ID(storageID), s, fileType, op == storiface.AcquireMove); err != nil {
+		if err := r.index.StorageDeclareSector(ctx, ID(storageID), s.ID, fileType, op == storiface.AcquireMove); err != nil {
 			log.Warnf("declaring sector %v in %s failed: %+v", s, storageID, err)
 			continue
 		}
@@ -169,7 +172,7 @@ func tempFetchDest(spath string, create bool) (string, error) {
 	return filepath.Join(tempdir, b), nil
 }
 
-func (r *Remote) acquireFromRemote(ctx context.Context, s abi.SectorID, fileType storiface.SectorFileType, dest string) (string, error) {
+func (r *Remote) acquireFromRemote(ctx context.Context, s abi.SectorID, fileType storiface.SectorFileType, dest string, useSharedStorage bool) (string, error) {
 	si, err := r.index.StorageFindSector(ctx, s, fileType, 0, false)
 	if err != nil {
 		return "", err
@@ -184,6 +187,7 @@ func (r *Remote) acquireFromRemote(ctx context.Context, s abi.SectorID, fileType
 	})
 
 	var merr error
+	//sec
 	for _, info := range si {
 		// TODO: see what we have local, prefer that
 
@@ -197,16 +201,28 @@ func (r *Remote) acquireFromRemote(ctx context.Context, s abi.SectorID, fileType
 				return "", xerrors.Errorf("removing dest: %w", err)
 			}
 
-			err = r.fetch(ctx, url, tempDest)
-			if err != nil {
-				merr = multierror.Append(merr, xerrors.Errorf("fetch error %s (storage %s) -> %s: %w", url, info.ID, tempDest, err))
-				continue
-			}
+			//use the cp
+			if useSharedStorage {
+				resultpath, err := r.fetchpath(ctx, url)
+				if err != nil {
+					merr = multierror.Append(merr, xerrors.Errorf("fetch error %s (storage %s) -> %s: %w", url, info.ID, resultpath, err))
+					continue
+				}
 
-			if err := move(tempDest, dest); err != nil {
-				return "", xerrors.Errorf("fetch move error (storage %s) %s -> %s: %w", info.ID, tempDest, dest, err)
-			}
+				if err := cp(tempDest, dest); err != nil {
+					return "", xerrors.Errorf("fetch cp error (storage %s) %s -> %s: %w", info.ID, tempDest, dest, err)
+				}
+			} else {
+				err := r.fetch(ctx, url, tempDest)
+				if err != nil {
+					merr = multierror.Append(merr, xerrors.Errorf("fetch error %s (storage %s) -> %s: %w", url, info.ID, tempDest, err))
+					continue
+				}
 
+				if err := move(tempDest, dest); err != nil {
+					return "", xerrors.Errorf("fetch move error (storage %s) %s -> %s: %w", info.ID, tempDest, dest, err)
+				}
+			}
 			if merr != nil {
 				log.Warnw("acquireFromRemote encountered errors when fetching sector from remote", "errors", merr)
 			}
@@ -217,6 +233,55 @@ func (r *Remote) acquireFromRemote(ctx context.Context, s abi.SectorID, fileType
 	return "", xerrors.Errorf("failed to acquire sector %v from remote (tried %v): %w", s, si, merr)
 }
 
+func ParseResponse(response *http.Response) (string, error) {
+	body, err := ioutil.ReadAll(response.Body)
+	if err == nil {
+		log.Infof("Fetch the path--%s", body)
+	}
+
+	return string(body), err
+}
+
+func (r *Remote) fetchpath(ctx context.Context, url string) (string, error) {
+	log.Infof("Fetch %s", url)
+
+	if len(r.limit) >= cap(r.limit) {
+		log.Infof("Throttling fetch, %d already running", len(r.limit))
+	}
+
+	// TODO: Smarter throttling
+	//  * Priority (just going sequentially is still pretty good)
+	//  * Per interface
+	//  * Aware of remote load
+	select {
+	case r.limit <- struct{}{}:
+		defer func() { <-r.limit }()
+	case <-ctx.Done():
+		return "", xerrors.Errorf("context error while waiting for fetch limiter: %w", ctx.Err())
+	}
+
+	s := strings.Split(url, "remote")
+	var ss []string
+	ss = append(ss, s[0])
+	ss = append(ss, "remote/path")
+	ss = append(ss, s[1])
+	url = strings.Join(ss, "")
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return "", xerrors.Errorf("request: %w", err)
+	}
+	req.Header = r.auth
+	req = req.WithContext(ctx)
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return "", xerrors.Errorf("do request: %w", err)
+	}
+	defer resp.Body.Close() // nolint
+
+	returnpath, _ := ParseResponse(resp)
+	return returnpath, nil
+}
 func (r *Remote) fetch(ctx context.Context, url, outname string) error {
 	log.Infof("Fetch %s -> %s", url, outname)
 
@@ -281,14 +346,14 @@ func (r *Remote) fetch(ctx context.Context, url, outname string) error {
 	}
 }
 
-func (r *Remote) MoveStorage(ctx context.Context, s abi.SectorID, ssize abi.SectorSize, types storiface.SectorFileType) error {
+func (r *Remote) MoveStorage(ctx context.Context, s storage.SectorRef, types storiface.SectorFileType, useSharedStorage bool) error {
 	// Make sure we have the data local
-	_, _, err := r.AcquireSector(ctx, s, ssize, types, storiface.FTNone, storiface.PathStorage, storiface.AcquireMove)
+	_, _, err := r.AcquireSector(ctx, s, types, storiface.FTNone, storiface.PathStorage, storiface.AcquireMove, useSharedStorage)
 	if err != nil {
 		return xerrors.Errorf("acquire src storage (remote): %w", err)
 	}
 
-	return r.local.MoveStorage(ctx, s, ssize, types)
+	return r.local.MoveStorage(ctx, s, types, useSharedStorage)
 }
 
 func (r *Remote) Remove(ctx context.Context, sid abi.SectorID, typ storiface.SectorFileType, force bool) error {
@@ -362,6 +427,7 @@ func (r *Remote) FsStat(ctx context.Context, id ID) (fsutil.FsStat, error) {
 	}
 
 	rl, err := url.Parse(si.URLs[0])
+
 	if err != nil {
 		return fsutil.FsStat{}, xerrors.Errorf("failed to parse url: %w", err)
 	}
@@ -372,6 +438,7 @@ func (r *Remote) FsStat(ctx context.Context, id ID) (fsutil.FsStat, error) {
 	if err != nil {
 		return fsutil.FsStat{}, xerrors.Errorf("request: %w", err)
 	}
+
 	req.Header = r.auth
 	req = req.WithContext(ctx)
 

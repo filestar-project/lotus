@@ -65,4 +65,4 @@ const BlockDelaySecs = uint64(builtin2.EpochDurationSeconds)
 
 const PropagationDelaySecs = uint64(6)
 
-const BootstrapPeerThreshold = 4
+const BootstrapPeerThreshold = 3

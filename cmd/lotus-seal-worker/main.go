@@ -32,7 +32,6 @@ import (
 	"github.com/filecoin-project/lotus/build"
 	lcli "github.com/filecoin-project/lotus/cli"
 	sectorstorage "github.com/filecoin-project/lotus/extern/sector-storage"
-	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper"
 	"github.com/filecoin-project/lotus/extern/sector-storage/sealtasks"
 	"github.com/filecoin-project/lotus/extern/sector-storage/stores"
 	"github.com/filecoin-project/lotus/lib/lotuslog"
@@ -356,11 +355,6 @@ var runCmd = &cli.Command{
 		}
 
 		// Setup remote sector store
-		spt, err := ffiwrapper.SealProofTypeFromSectorSize(ssize)
-		if err != nil {
-			return xerrors.Errorf("getting proof type: %w", err)
-		}
-
 		sminfo, err := lcli.GetAPIInfo(cctx, repo.StorageMiner)
 		if err != nil {
 			return xerrors.Errorf("could not get api info: %w", err)
@@ -368,13 +362,23 @@ var runCmd = &cli.Command{
 
 		remote := stores.NewRemote(localStore, nodeApi, sminfo.AuthHeader(), cctx.Int("parallel-fetch-limit"))
 
+		fh := &stores.FetchHandler{Local: localStore}
+		remoteHandler := func(w http.ResponseWriter, r *http.Request) {
+			if !auth.HasPerm(r.Context(), nil, apistruct.PermAdmin) {
+				w.WriteHeader(401)
+				_ = json.NewEncoder(w).Encode(struct{ Error string }{"unauthorized: missing admin permission"})
+				return
+			}
+
+			fh.ServeHTTP(w, r)
+		}
+
 		// Create / expose the worker
 
 		wsts := statestore.New(namespace.Wrap(ds, modules.WorkerCallsPrefix))
 
 		workerApi := &worker{
 			LocalWorker: sectorstorage.NewLocalWorker(sectorstorage.WorkerConfig{
-				SealProof: spt,
 				TaskTypes: taskTypes,
 				NoSwap:    cctx.Bool("no-swap"),
 			}, remote, localStore, nodeApi, nodeApi, wsts),
@@ -392,7 +396,7 @@ var runCmd = &cli.Command{
 
 		mux.Handle("/rpc/v0", rpcServer)
 		mux.Handle("/rpc/streams/v0/push/{uuid}", readerHandler)
-		mux.PathPrefix("/remote").HandlerFunc((&stores.FetchHandler{Local: localStore}).ServeHTTP)
+		mux.PathPrefix("/remote").HandlerFunc(remoteHandler)
 		mux.PathPrefix("/").Handler(http.DefaultServeMux) // pprof
 
 		ah := &auth.Handler{

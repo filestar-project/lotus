@@ -131,24 +131,30 @@ type ChainStore struct {
 
 	evtTypes [1]journal.EventType
 	journal  journal.Journal
+
+	cancelFn context.CancelFunc
+	wg       sync.WaitGroup
 }
 
 // localbs is guaranteed to fail Get* if requested block isn't stored locally
 func NewChainStore(bs bstore.Blockstore, localbs bstore.Blockstore, ds dstore.Batching, vmcalls vm.SyscallBuilder, j journal.Journal) *ChainStore {
-	c, _ := lru.NewARC(DefaultMsgMetaCacheSize)
-	tsc, _ := lru.NewARC(DefaultTipSetCacheSize)
+	mmCache, _ := lru.NewARC(DefaultMsgMetaCacheSize)
+	tsCache, _ := lru.NewARC(DefaultTipSetCacheSize)
 	if j == nil {
 		j = journal.NilJournal()
 	}
+
+	ctx, cancel := context.WithCancel(context.Background())
 	cs := &ChainStore{
 		bs:       bs,
 		localbs:  localbs,
 		ds:       ds,
 		bestTips: pubsub.New(64),
 		tipsets:  make(map[abi.ChainEpoch][]cid.Cid),
-		mmCache:  c,
-		tsCache:  tsc,
+		mmCache:  mmCache,
+		tsCache:  tsCache,
 		vmcalls:  vmcalls,
+		cancelFn: cancel,
 		journal:  j,
 	}
 
@@ -188,17 +194,22 @@ func NewChainStore(bs bstore.Blockstore, localbs bstore.Blockstore, ds dstore.Ba
 	}
 
 	hcmetric := func(rev, app []*types.TipSet) error {
-		ctx := context.Background()
 		for _, r := range app {
-			stats.Record(ctx, metrics.ChainNodeHeight.M(int64(r.Height())))
+			stats.Record(context.Background(), metrics.ChainNodeHeight.M(int64(r.Height())))
 		}
 		return nil
 	}
 
 	cs.reorgNotifeeCh = make(chan ReorgNotifee)
-	cs.reorgCh = cs.reorgWorker(context.TODO(), []ReorgNotifee{hcnf, hcmetric})
+	cs.reorgCh = cs.reorgWorker(ctx, []ReorgNotifee{hcnf, hcmetric})
 
 	return cs
+}
+
+func (cs *ChainStore) Close() error {
+	cs.cancelFn()
+	cs.wg.Wait()
+	return nil
 }
 
 func (cs *ChainStore) Load() error {
@@ -380,7 +391,7 @@ func (cs *ChainStore) MaybeTakeHeavierTipSet(ctx context.Context, ts *types.TipS
 // particular tipset to carry out a benchmark, verification, etc. on a chain
 // segment.
 func (cs *ChainStore) ForceHeadSilent(_ context.Context, ts *types.TipSet) error {
-	log.Warnf("(!!!) forcing a new head silently; only use this only for testing; new head: %s", ts)
+	log.Warnf("(!!!) forcing a new head silently; new head: %s", ts)
 
 	cs.heaviestLk.Lock()
 	defer cs.heaviestLk.Unlock()
@@ -403,7 +414,9 @@ func (cs *ChainStore) reorgWorker(ctx context.Context, initialNotifees []ReorgNo
 	notifees := make([]ReorgNotifee, len(initialNotifees))
 	copy(notifees, initialNotifees)
 
+	cs.wg.Add(1)
 	go func() {
+		defer cs.wg.Done()
 		defer log.Warn("reorgWorker quit")
 
 		for {
@@ -685,6 +698,12 @@ func (cs *ChainStore) AddToTipSetTracker(b *types.BlockHeader) error {
 			log.Debug("tried to add block to tipset tracker that was already there")
 			return nil
 		}
+		h, err := cs.GetBlock(oc)
+		if err == nil && h != nil {
+			if h.Miner == b.Miner {
+				log.Warnf("Have multiple blocks from miner %s at height %d in our tipset cache %s-%s", b.Miner, b.Height, b.Cid(), h.Cid())
+			}
+		}
 	}
 
 	cs.tipsets[b.Height] = append(tss, b.Cid())
@@ -756,7 +775,7 @@ func (cs *ChainStore) expandTipset(b *types.BlockHeader) (*types.TipSet, error) 
 		return types.NewTipSet(all)
 	}
 
-	inclMiners := map[address.Address]bool{b.Miner: true}
+	inclMiners := map[address.Address]cid.Cid{b.Miner: b.Cid()}
 	for _, bhc := range tsets {
 		if bhc == b.Cid() {
 			continue
@@ -767,14 +786,14 @@ func (cs *ChainStore) expandTipset(b *types.BlockHeader) (*types.TipSet, error) 
 			return nil, xerrors.Errorf("failed to load block (%s) for tipset expansion: %w", bhc, err)
 		}
 
-		if inclMiners[h.Miner] {
-			log.Warnf("Have multiple blocks from miner %s at height %d in our tipset cache", h.Miner, h.Height)
+		if cid, found := inclMiners[h.Miner]; found {
+			log.Warnf("Have multiple blocks from miner %s at height %d in our tipset cache %s-%s", h.Miner, h.Height, h.Cid(), cid)
 			continue
 		}
 
 		if types.CidArrsEqual(h.Parents, b.Parents) {
 			all = append(all, h)
-			inclMiners[h.Miner] = true
+			inclMiners[h.Miner] = bhc
 		}
 	}
 

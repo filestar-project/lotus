@@ -23,14 +23,13 @@ import (
 	"github.com/filecoin-project/go-state-types/abi"
 	"github.com/filecoin-project/go-state-types/big"
 	"github.com/filecoin-project/go-state-types/crypto"
-	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper"
-
 	builtin0 "github.com/filecoin-project/specs-actors/actors/builtin"
 	miner0 "github.com/filecoin-project/specs-actors/actors/builtin/miner"
 	power0 "github.com/filecoin-project/specs-actors/actors/builtin/power"
 	reward0 "github.com/filecoin-project/specs-actors/actors/builtin/reward"
 	runtime2 "github.com/filecoin-project/specs-actors/v2/actors/runtime"
 
+	"github.com/filecoin-project/lotus/build"
 	"github.com/filecoin-project/lotus/chain/state"
 	"github.com/filecoin-project/lotus/chain/store"
 	"github.com/filecoin-project/lotus/chain/types"
@@ -101,7 +100,8 @@ func SetupStorageMiners(ctx context.Context, cs *store.ChainStore, sroot cid.Cid
 		i := i
 		m := m
 
-		spt, err := ffiwrapper.SealProofTypeFromSectorSize(m.SectorSize)
+
+		spt, err := miner.SealProofTypeFromSectorSize(m.SectorSize, build.NewestNetworkVersion)
 		if err != nil {
 			return cid.Undef, err
 		}

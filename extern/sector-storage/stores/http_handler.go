@@ -2,9 +2,11 @@ package stores
 
 import (
 	"encoding/json"
+	"github.com/filecoin-project/specs-storage/storage"
 	"io"
 	"net/http"
 	"os"
+	"strings"
 
 	"github.com/gorilla/mux"
 	logging "github.com/ipfs/go-log/v2"
@@ -25,6 +27,7 @@ func (handler *FetchHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	mux.HandleFunc("/remote/stat/{id}", handler.remoteStatFs).Methods("GET")
 	mux.HandleFunc("/remote/{type}/{id}", handler.remoteGetSector).Methods("GET")
+	mux.HandleFunc("/remote/path/{type}/{id}", handler.remoteGetSectorPath).Methods("GET")
 	mux.HandleFunc("/remote/{type}/{id}", handler.remoteDeleteSector).Methods("DELETE")
 
 	mux.ServeHTTP(w, r)
@@ -73,7 +76,13 @@ func (handler *FetchHandler) remoteGetSector(w http.ResponseWriter, r *http.Requ
 	// The caller has a lock on this sector already, no need to get one here
 
 	// passing 0 spt because we don't allocate anything
-	paths, _, err := handler.Local.AcquireSector(r.Context(), id, 0, ft, storiface.FTNone, storiface.PathStorage, storiface.AcquireMove)
+	si := storage.SectorRef{
+		ID:        id,
+		ProofType: 0,
+	}
+
+	useSharedStorage := false
+	paths, _, err := handler.Local.AcquireSector(r.Context(), si, ft, storiface.FTNone, storiface.PathStorage, storiface.AcquireMove, useSharedStorage)
 	if err != nil {
 		log.Errorf("%+v", err)
 		w.WriteHeader(500)
@@ -97,6 +106,9 @@ func (handler *FetchHandler) remoteGetSector(w http.ResponseWriter, r *http.Requ
 	}
 
 	var rd io.Reader
+
+	rd = strings.NewReader(string(path))
+
 	if stat.IsDir() {
 		rd, err = tarutil.TarDirectory(path)
 		w.Header().Set("Content-Type", "application/x-tar")
@@ -104,13 +116,71 @@ func (handler *FetchHandler) remoteGetSector(w http.ResponseWriter, r *http.Requ
 		rd, err = os.OpenFile(path, os.O_RDONLY, 0644) // nolint
 		w.Header().Set("Content-Type", "application/octet-stream")
 	}
+
+	w.WriteHeader(200)
+
+	if _, err := io.Copy(w, rd); err != nil { // TODO: default 32k buf may be too small
+		log.Errorf("%+v", err)
+		return
+	}
+}
+
+func (handler *FetchHandler) remoteGetSectorPath(w http.ResponseWriter, r *http.Request) {
+	log.Infof("SERVE GET PATH %s", r.URL)
+	vars := mux.Vars(r)
+
+	id, err := storiface.ParseSectorID(vars["id"])
 	if err != nil {
 		log.Errorf("%+v", err)
 		w.WriteHeader(500)
 		return
 	}
 
+	ft, err := ftFromString(vars["type"])
+	if err != nil {
+		log.Errorf("%+v", err)
+		w.WriteHeader(500)
+		return
+	}
+
+	// The caller has a lock on this sector already, no need to get one here
+
+	// passing 0 spt because we don't allocate anything
+	si := storage.SectorRef{
+		ID:        id,
+		ProofType: 0,
+	}
+
+	useSharedStorage := false
+	paths, _, err := handler.Local.AcquireSector(r.Context(), si, ft, storiface.FTNone, storiface.PathStorage, storiface.AcquireMove, useSharedStorage)
+	if err != nil {
+		log.Errorf("%+v", err)
+		w.WriteHeader(500)
+		return
+	}
+
+	// TODO: reserve local storage here
+
+	path := storiface.PathByType(paths, ft)
+	if path == "" {
+		log.Error("acquired path was empty")
+		w.WriteHeader(500)
+		return
+	}
+
+	_, err = os.Stat(path)
+	if err != nil {
+		log.Errorf("%+v", err)
+		w.WriteHeader(500)
+		return
+	}
+
+	var rd io.Reader
+
+	rd = strings.NewReader(string(path))
+
 	w.WriteHeader(200)
+
 	if _, err := io.Copy(w, rd); err != nil { // TODO: default 32k buf may be too small
 		log.Errorf("%+v", err)
 		return
