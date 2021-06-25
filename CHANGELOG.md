@@ -20,12 +20,14 @@ This is an optional release of Filestar that upgrades Lotus dependencies, and in
 * remove old cache before SealPreCommitPhase2 (https://github.com/filestar-project/lotus/commit/6193a6094076e100db6500c13551d5e73d4eaca8)
 * ipfsbstore: Fix has for non-existing blocks (https://github.com/filestar-project/lotus/commit/4c9c0963e7bfd57dc93bf41ff42141f6c93de8d3)
 * Update go-jsonrpc fixing websocket reconnecting (https://github.com/filestar-project/lotus/commit/26b4e37641d028df6cba5a045ad49f5a4b3db00e)
+* Fix bootstrapper profile setting (https://github.com/filestar-project/lotus/commit/3c48faac65b541b0ec44925077b7723438b87dd6)
 
 ### improvements
 * Speed up worker key retrieval (https://github.com/filestar-project/lotus/commit/d0177d521ce628806ae1154c25776a02c50594d2)
 * Check (pre)commit receipt before other checks in failed states (https://github.com/filestar-project/lotus/commit/a84fa93e48746f2c7e5928288c006dd6b0b80573)
 * wdpost: Retry proofs if we generate an incorrect one (https://github.com/filestar-project/lotus/commit/b0567537d0e14e6114d123a6598f8b05614356f6)
 * Allow multisigs to be set as miner owner address (https://github.com/filestar-project/lotus/commit/aa639cd1efa436a58035519258b83080e03a6039)
+* Improve error message with importing a chain (https://github.com/filestar-project/lotus/commit/6bb254210d876e5488de7931fdf7765862da995b)
 
 ### cmd/api
 * support `--by-ping` for `client list-asks` (https://github.com/filestar-project/lotus/commit/cca6152b92e471ef0703aad859b6ecd0933eda6e)
