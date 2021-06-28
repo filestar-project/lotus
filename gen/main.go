@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"github.com/filecoin-project/lotus/lib/backupds"
 	"os"
 
 	"github.com/filecoin-project/lotus/chain/market"
@@ -101,14 +100,6 @@ func main() {
 		sectorstorage.Call{},
 		sectorstorage.WorkState{},
 		sectorstorage.WorkID{},
-	)
-	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
-	}
-
-	err = gen.WriteTupleEncodersToFile("./lib/backupds/cbor_gen.go", "backupds",
-		backupds.Entry{},
 	)
 	if err != nil {
 		fmt.Println(err)
