@@ -5,6 +5,8 @@ package storageadapter
 import (
 	"bytes"
 	"context"
+	"github.com/filecoin-project/lotus/node/modules/helpers"
+	"go.uber.org/fx"
 
 	"github.com/filecoin-project/go-address"
 	cborutil "github.com/filecoin-project/go-cbor-util"
@@ -48,15 +50,18 @@ type clientApi struct {
 	full.StateAPI
 }
 
-func NewClientNodeAdapter(stateapi full.StateAPI, chain full.ChainAPI, mpool full.MpoolAPI, fundmgr *market.FundManager) storagemarket.StorageClientNode {
+func NewClientNodeAdapter(mctx helpers.MetricsCtx, lc fx.Lifecycle, stateapi full.StateAPI, chain full.ChainAPI, mpool full.MpoolAPI, fundmgr *market.FundManager) storagemarket.StorageClientNode {
 	capi := &clientApi{chain, stateapi}
+	ctx := helpers.LifecycleCtx(mctx, lc)
+
+	ev := events.NewEvents(ctx, capi)
 	return &ClientNodeAdapter{
 		StateAPI: stateapi,
 		ChainAPI: chain,
 		MpoolAPI: mpool,
 
 		fundmgr:   fundmgr,
-		ev:        events.NewEvents(context.TODO(), capi),
+		ev:        ev,
 		dsMatcher: newDealStateMatcher(state.NewStatePredicates(state.WrapFastAPI(capi))),
 	}
 }

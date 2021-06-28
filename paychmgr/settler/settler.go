@@ -2,6 +2,7 @@ package settler
 
 import (
 	"context"
+	"github.com/filecoin-project/lotus/node/modules/helpers"
 	"sync"
 
 	"github.com/filecoin-project/lotus/paychmgr"
@@ -50,9 +51,10 @@ type paymentChannelSettler struct {
 
 // SettlePaymentChannels checks the chain for events related to payment channels settling and
 // submits any vouchers for inbound channels tracked for this node
-func SettlePaymentChannels(lc fx.Lifecycle, api API) error {
+func SettlePaymentChannels(mctx helpers.MetricsCtx, lc fx.Lifecycle, api API) error {
+	ctx := helpers.LifecycleCtx(mctx, lc)
 	lc.Append(fx.Hook{
-		OnStart: func(ctx context.Context) error {
+		OnStart: func(context.Context) error {
 			pcs := newPaymentChannelSettler(ctx, &api)
 			ev := events.NewEvents(ctx, &api)
 			return ev.Called(pcs.check, pcs.messageHandler, pcs.revertHandler, int(build.MessageConfidence+1), events.NoTimeout, pcs.matcher)
