@@ -98,8 +98,6 @@ type SealerConfig struct {
 	UseSharedStorage bool
 }
 
-var UseSharedStorage bool
-
 type StorageAuth http.Header
 
 type WorkerStateStore *statestore.StateStore
@@ -116,7 +114,7 @@ func New(ctx context.Context, ls stores.LocalStorage, si stores.SectorIndex, sc 
 		return nil, xerrors.Errorf("creating prover instance: %w", err)
 	}
 
-	stor := stores.NewRemote(lstor, si, http.Header(sa), sc.ParallelFetchLimit)
+	stor := stores.NewRemote(lstor, si, http.Header(sa), sc.ParallelFetchLimit, sc.UseSharedStorage)
 
 	m := &Manager{
 		ls:         ls,
@@ -166,7 +164,6 @@ func New(ctx context.Context, ls stores.LocalStorage, si stores.SectorIndex, sc 
 		return nil, xerrors.Errorf("adding local worker: %w", err)
 	}
 
-	UseSharedStorage = sc.UseSharedStorage
 	return m, nil
 }
 
@@ -200,9 +197,9 @@ func schedNop(context.Context, Worker) error {
 	return nil
 }
 
-func (m *Manager) schedFetch(sector storage.SectorRef, ft storiface.SectorFileType, ptype storiface.PathType, am storiface.AcquireMode, useSharedStorage bool) func(context.Context, Worker) error {
+func (m *Manager) schedFetch(sector storage.SectorRef, ft storiface.SectorFileType, ptype storiface.PathType, am storiface.AcquireMode) func(context.Context, Worker) error {
 	return func(ctx context.Context, worker Worker) error {
-		_, err := m.waitSimpleCall(ctx)(worker.Fetch(ctx, sector, ft, ptype, am, useSharedStorage))
+		_, err := m.waitSimpleCall(ctx)(worker.Fetch(ctx, sector, ft, ptype, am))
 		return err
 	}
 }
@@ -244,7 +241,7 @@ func (m *Manager) tryReadUnsealedPiece(ctx context.Context, sink io.Writer, sect
 
 		selector = newExistingSelector(m.index, sector.ID, storiface.FTUnsealed, false)
 
-		err = m.sched.Schedule(ctx, sector, sealtasks.TTReadUnsealed, selector, m.schedFetch(sector, storiface.FTUnsealed, storiface.PathSealing, storiface.AcquireMove, UseSharedStorage),
+		err = m.sched.Schedule(ctx, sector, sealtasks.TTReadUnsealed, selector, m.schedFetch(sector, storiface.FTUnsealed, storiface.PathSealing, storiface.AcquireMove),
 			m.readPiece(sink, sector, offset, size, &readOk))
 		if err != nil {
 			returnErr = xerrors.Errorf("reading piece from sealed sector: %w", err)
@@ -271,12 +268,12 @@ func (m *Manager) ReadPiece(ctx context.Context, sink io.Writer, sector storage.
 	}
 
 	unsealFetch := func(ctx context.Context, worker Worker) error {
-		if _, err := m.waitSimpleCall(ctx)(worker.Fetch(ctx, sector, storiface.FTSealed|storiface.FTCache, storiface.PathSealing, storiface.AcquireCopy, UseSharedStorage)); err != nil {
+		if _, err := m.waitSimpleCall(ctx)(worker.Fetch(ctx, sector, storiface.FTSealed|storiface.FTCache, storiface.PathSealing, storiface.AcquireCopy)); err != nil {
 			return xerrors.Errorf("copy sealed/cache sector data: %w", err)
 		}
 
 		if foundUnsealed {
-			if _, err := m.waitSimpleCall(ctx)(worker.Fetch(ctx, sector, storiface.FTUnsealed, storiface.PathSealing, storiface.AcquireMove, UseSharedStorage)); err != nil {
+			if _, err := m.waitSimpleCall(ctx)(worker.Fetch(ctx, sector, storiface.FTUnsealed, storiface.PathSealing, storiface.AcquireMove)); err != nil {
 				return xerrors.Errorf("copy unsealed sector data: %w", err)
 			}
 		}
@@ -297,7 +294,7 @@ func (m *Manager) ReadPiece(ctx context.Context, sink io.Writer, sector storage.
 
 	selector = newExistingSelector(m.index, sector.ID, storiface.FTUnsealed, false)
 
-	err = m.sched.Schedule(ctx, sector, sealtasks.TTReadUnsealed, selector, m.schedFetch(sector, storiface.FTUnsealed, storiface.PathSealing, storiface.AcquireMove, UseSharedStorage),
+	err = m.sched.Schedule(ctx, sector, sealtasks.TTReadUnsealed, selector, m.schedFetch(sector, storiface.FTUnsealed, storiface.PathSealing, storiface.AcquireMove),
 		m.readPiece(sink, sector, offset, size, &readOk))
 	if err != nil {
 		return xerrors.Errorf("reading piece from sealed sector: %w", err)
@@ -381,7 +378,7 @@ func (m *Manager) SealPreCommit1(ctx context.Context, sector storage.SectorRef, 
 
 	selector := newAllocSelector(m.index, storiface.FTCache|storiface.FTSealed, storiface.PathSealing)
 
-	err = m.sched.Schedule(ctx, sector, sealtasks.TTPreCommit1, selector, m.schedFetch(sector, storiface.FTUnsealed, storiface.PathSealing, storiface.AcquireMove, UseSharedStorage), func(ctx context.Context, w Worker) error {
+	err = m.sched.Schedule(ctx, sector, sealtasks.TTPreCommit1, selector, m.schedFetch(sector, storiface.FTUnsealed, storiface.PathSealing, storiface.AcquireMove), func(ctx context.Context, w Worker) error {
 		err := m.startWork(ctx, w, wk)(w.SealPreCommit1(ctx, sector, ticket, pieces))
 		if err != nil {
 			return err
@@ -430,7 +427,7 @@ func (m *Manager) SealPreCommit2(ctx context.Context, sector storage.SectorRef, 
 
 	selector := newExistingSelector(m.index, sector.ID, storiface.FTCache|storiface.FTSealed, true)
 
-	err = m.sched.Schedule(ctx, sector, sealtasks.TTPreCommit2, selector, m.schedFetch(sector, storiface.FTCache|storiface.FTSealed, storiface.PathSealing, storiface.AcquireMove, UseSharedStorage), func(ctx context.Context, w Worker) error {
+	err = m.sched.Schedule(ctx, sector, sealtasks.TTPreCommit2, selector, m.schedFetch(sector, storiface.FTCache|storiface.FTSealed, storiface.PathSealing, storiface.AcquireMove), func(ctx context.Context, w Worker) error {
 		err := m.startWork(ctx, w, wk)(w.SealPreCommit2(ctx, sector, phase1Out))
 		if err != nil {
 			return err
@@ -482,7 +479,7 @@ func (m *Manager) SealCommit1(ctx context.Context, sector storage.SectorRef, tic
 	// generally very cheap / fast, and transferring data is not worth the effort
 	selector := newExistingSelector(m.index, sector.ID, storiface.FTCache|storiface.FTSealed, false)
 
-	err = m.sched.Schedule(ctx, sector, sealtasks.TTCommit1, selector, m.schedFetch(sector, storiface.FTCache|storiface.FTSealed, storiface.PathSealing, storiface.AcquireMove, UseSharedStorage), func(ctx context.Context, w Worker) error {
+	err = m.sched.Schedule(ctx, sector, sealtasks.TTCommit1, selector, m.schedFetch(sector, storiface.FTCache|storiface.FTSealed, storiface.PathSealing, storiface.AcquireMove), func(ctx context.Context, w Worker) error {
 		err := m.startWork(ctx, w, wk)(w.SealCommit1(ctx, sector, ticket, seed, pieces, cids))
 		if err != nil {
 			return err
@@ -564,7 +561,7 @@ func (m *Manager) FinalizeSector(ctx context.Context, sector storage.SectorRef, 
 	selector := newExistingSelector(m.index, sector.ID, storiface.FTCache|storiface.FTSealed, false)
 
 	err := m.sched.Schedule(ctx, sector, sealtasks.TTFinalize, selector,
-		m.schedFetch(sector, storiface.FTCache|storiface.FTSealed|unsealed, storiface.PathSealing, storiface.AcquireMove, UseSharedStorage),
+		m.schedFetch(sector, storiface.FTCache|storiface.FTSealed|unsealed, storiface.PathSealing, storiface.AcquireMove),
 		func(ctx context.Context, w Worker) error {
 			_, err := m.waitSimpleCall(ctx)(w.FinalizeSector(ctx, sector, keepUnsealed))
 			return err
@@ -582,9 +579,9 @@ func (m *Manager) FinalizeSector(ctx context.Context, sector storage.SectorRef, 
 	}
 
 	err = m.sched.Schedule(ctx, sector, sealtasks.TTFetch, fetchSel,
-		m.schedFetch(sector, storiface.FTCache|storiface.FTSealed|moveUnsealed, storiface.PathStorage, storiface.AcquireMove, UseSharedStorage),
+		m.schedFetch(sector, storiface.FTCache|storiface.FTSealed|moveUnsealed, storiface.PathStorage, storiface.AcquireMove),
 		func(ctx context.Context, w Worker) error {
-			_, err := m.waitSimpleCall(ctx)(w.MoveStorage(ctx, sector, storiface.FTCache|storiface.FTSealed|moveUnsealed, UseSharedStorage))
+			_, err := m.waitSimpleCall(ctx)(w.MoveStorage(ctx, sector, storiface.FTCache|storiface.FTSealed|moveUnsealed))
 			return err
 		})
 	if err != nil {

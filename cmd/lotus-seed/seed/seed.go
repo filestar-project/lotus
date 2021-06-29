@@ -186,7 +186,7 @@ func presealSector(sb *ffiwrapper.Sealer, sbfs *basicfs.Provider, sid storage.Se
 }
 
 func presealSectorFake(sbfs *basicfs.Provider, sid storage.SectorRef, ssize abi.SectorSize) (*genesis.PreSeal, error) {
-	paths, done, err := sbfs.AcquireSector(context.TODO(), sid, 0, storiface.FTSealed|storiface.FTCache, storiface.PathSealing, false)
+	paths, done, err := sbfs.AcquireSector(context.TODO(), sid, 0, storiface.FTSealed|storiface.FTCache, storiface.PathSealing)
 	if err != nil {
 		return nil, xerrors.Errorf("acquire unsealed sector: %w", err)
 	}
@@ -210,7 +210,7 @@ func presealSectorFake(sbfs *basicfs.Provider, sid storage.SectorRef, ssize abi.
 }
 
 func cleanupUnsealed(sbfs *basicfs.Provider, ref storage.SectorRef) error {
-	paths, done, err := sbfs.AcquireSector(context.TODO(), ref, storiface.FTUnsealed, storiface.FTNone, storiface.PathSealing, false)
+	paths, done, err := sbfs.AcquireSector(context.TODO(), ref, storiface.FTUnsealed, storiface.FTNone, storiface.PathSealing)
 	if err != nil {
 		return err
 	}

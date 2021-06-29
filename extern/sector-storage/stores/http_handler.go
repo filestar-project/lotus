@@ -81,8 +81,7 @@ func (handler *FetchHandler) remoteGetSector(w http.ResponseWriter, r *http.Requ
 		ProofType: 0,
 	}
 
-	useSharedStorage := false
-	paths, _, err := handler.Local.AcquireSector(r.Context(), si, ft, storiface.FTNone, storiface.PathStorage, storiface.AcquireMove, useSharedStorage)
+	paths, _, err := handler.Local.AcquireSector(r.Context(), si, ft, storiface.FTNone, storiface.PathStorage, storiface.AcquireMove)
 	if err != nil {
 		log.Errorf("%+v", err)
 		w.WriteHeader(500)
@@ -151,8 +150,7 @@ func (handler *FetchHandler) remoteGetSectorPath(w http.ResponseWriter, r *http.
 		ProofType: 0,
 	}
 
-	useSharedStorage := false
-	paths, _, err := handler.Local.AcquireSector(r.Context(), si, ft, storiface.FTNone, storiface.PathStorage, storiface.AcquireMove, useSharedStorage)
+	paths, _, err := handler.Local.AcquireSector(r.Context(), si, ft, storiface.FTNone, storiface.PathStorage, storiface.AcquireMove)
 	if err != nil {
 		log.Errorf("%+v", err)
 		w.WriteHeader(500)

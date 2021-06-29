@@ -16,7 +16,7 @@ type readonlyProvider struct {
 	stor  *stores.Local
 }
 
-func (l *readonlyProvider) AcquireSector(ctx context.Context, id storage.SectorRef, existing storiface.SectorFileType, allocate storiface.SectorFileType, sealing storiface.PathType, _ bool) (storiface.SectorPaths, func(), error) {
+func (l *readonlyProvider) AcquireSector(ctx context.Context, id storage.SectorRef, existing storiface.SectorFileType, allocate storiface.SectorFileType, sealing storiface.PathType) (storiface.SectorPaths, func(), error) {
 	if allocate != storiface.FTNone {
 		return storiface.SectorPaths{}, nil, xerrors.New("read-only storage")
 	}
@@ -34,7 +34,7 @@ func (l *readonlyProvider) AcquireSector(ctx context.Context, id storage.SectorR
 		return storiface.SectorPaths{}, nil, xerrors.Errorf("failed to acquire sector lock")
 	}
 
-	p, _, err := l.stor.AcquireSector(ctx, id, existing, allocate, sealing, storiface.AcquireMove, false)
+	p, _, err := l.stor.AcquireSector(ctx, id, existing, allocate, sealing, storiface.AcquireMove)
 
 	return p, cancel, err
 }
