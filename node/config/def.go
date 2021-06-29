@@ -186,6 +186,7 @@ func DefaultStorageMiner() *StorageMiner {
 			AllowPreCommit2: false,
 			AllowCommit:     false,
 			AllowUnseal:     false,
+			AllowFinalize:   false,
 
 			// Default to 10 - tcp should still be able to figure this out, and
 			// it's the ratio between 10gbit / 1gbit

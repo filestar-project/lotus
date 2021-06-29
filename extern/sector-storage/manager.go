@@ -98,6 +98,7 @@ type SealerConfig struct {
 	AllowPreCommit2 bool
 	AllowCommit     bool
 	AllowUnseal     bool
+	AllowFinalize   bool
 }
 
 type StorageAuth http.Header
@@ -141,7 +142,7 @@ func New(ctx context.Context, ls stores.LocalStorage, si stores.SectorIndex, sc 
 	go m.sched.runSched()
 
 	localTasks := []sealtasks.TaskType{
-		sealtasks.TTCommit1, sealtasks.TTFinalize, sealtasks.TTFetch, sealtasks.TTReadUnsealed,
+		 sealtasks.TTFetch, sealtasks.TTReadUnsealed,
 	}
 	if sc.AllowAddPiece {
 		localTasks = append(localTasks, sealtasks.TTAddPiece)
@@ -153,10 +154,14 @@ func New(ctx context.Context, ls stores.LocalStorage, si stores.SectorIndex, sc 
 		localTasks = append(localTasks, sealtasks.TTPreCommit2)
 	}
 	if sc.AllowCommit {
+		localTasks = append(localTasks, sealtasks.TTCommit1)
 		localTasks = append(localTasks, sealtasks.TTCommit2)
 	}
 	if sc.AllowUnseal {
 		localTasks = append(localTasks, sealtasks.TTUnseal)
+	}
+	if sc.AllowFinalize {
+		localTasks = append(localTasks, sealtasks.TTFinalize)
 	}
 
 	err = m.AddWorker(ctx, NewLocalWorker(WorkerConfig{
