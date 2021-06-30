@@ -80,7 +80,7 @@ func (sb *Sealer) pubSectorToPriv(ctx context.Context, mid abi.ActorID, sectorIn
 			ProofType: s.SealProof,
 		}
 
-		paths, d, err := sb.sectors.AcquireSector(ctx, sid, storiface.FTCache|storiface.FTSealed, 0, storiface.PathStorage, false)
+		paths, d, err := sb.sectors.AcquireSector(ctx, sid, storiface.FTCache|storiface.FTSealed, 0, storiface.PathStorage)
 		if err != nil {
 			log.Warnw("failed to acquire sector, skipping", "sector", sid.ID, "error", err)
 			skipped = append(skipped, sid.ID)

@@ -83,11 +83,11 @@ func (s *schedTestWorker) AddPiece(ctx context.Context, sector storage.SectorRef
 	panic("implement me")
 }
 
-func (s *schedTestWorker) MoveStorage(ctx context.Context, sector storage.SectorRef, types storiface.SectorFileType, useSharedStorage bool) (storiface.CallID, error) {
+func (s *schedTestWorker) MoveStorage(ctx context.Context, sector storage.SectorRef, types storiface.SectorFileType) (storiface.CallID, error) {
 	panic("implement me")
 }
 
-func (s *schedTestWorker) Fetch(ctx context.Context, id storage.SectorRef, ft storiface.SectorFileType, ptype storiface.PathType, am storiface.AcquireMode, useSharedStorage bool) (storiface.CallID, error) {
+func (s *schedTestWorker) Fetch(ctx context.Context, id storage.SectorRef, ft storiface.SectorFileType, ptype storiface.PathType, am storiface.AcquireMode) (storiface.CallID, error) {
 	panic("implement me")
 }
 

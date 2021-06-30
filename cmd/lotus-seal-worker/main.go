@@ -360,7 +360,7 @@ var runCmd = &cli.Command{
 			return xerrors.Errorf("could not get api info: %w", err)
 		}
 
-		remote := stores.NewRemote(localStore, nodeApi, sminfo.AuthHeader(), cctx.Int("parallel-fetch-limit"))
+		remote := stores.NewRemote(localStore, nodeApi, sminfo.AuthHeader(), cctx.Int("parallel-fetch-limit"), false)
 
 		fh := &stores.FetchHandler{Local: localStore}
 		remoteHandler := func(w http.ResponseWriter, r *http.Request) {
