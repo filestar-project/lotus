@@ -149,6 +149,13 @@ var fsmPlanners = map[SectorState]func(events []statemachine.Event, state *Secto
 		on(SectorFaulty{}, Faulty),
 	),
 	Removing: planOne(
+		on(SectorSealPreCommit1Failed{}, Removing),
+		on(SectorRetrySealPreCommit1{}, Removing),
+		on(SectorSealPreCommit2Failed{}, Removing),
+		on(SectorRetrySealPreCommit2{}, Removing),
+		on(SectorCommitFailed{}, Removing),
+		on(SectorRetryCommitWait{}, Removing),
+		on(SectorFinalizeFailed{}, Removing),
 		on(SectorRemoved{}, Removed),
 		on(SectorRemoveFailed{}, RemoveFailed),
 	),
