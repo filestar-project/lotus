@@ -1,5 +1,21 @@
 # Lotus changelog
 
+# 1.3.3
+
+This is an optional release of Filestar that upgrades Lotus dependencies, and includes many performance enhancements, bugfixes, and UX improvements.
+
+## Changes
+* miner: break loop when found warm up sector (https://github.com/filestar-project/lotus/commit/a7174eeb95dc93045a261f4a08e138484101cbb0)
+* miner:  optimize code use existence var (https://github.com/filestar-project/lotus/commit/68f0e1e47e6753b8851216b0fec6d93bb1c9bb34)
+* update miner default config (https://github.com/filestar-project/lotus/commit/fb62d2870bc1f73b1f22eca142c4c3968df7ff22 , https://github.com/filestar-project/lotus/commit/73cfbb874214a794c774554fb9b8bd0ed78ea7c1) 
+* fix fix drop sector (https://github.com/filestar-project/lotus/commit/5953a221e8d704eb7d92e7fe65dfaf22c63c4dc2)
+* fix health report (https://github.com/filestar-project/lotus/commit/59fdff68953b13520630fb46833c15712aee611d)
+* fix a coding error in truncating sector log (https://github.com/filestar-project/lotus/commit/a4d704e34d8fd8601ddaf638e38d9015fb871e64)
+* storagefsm: Fix unsealedInfoMap.lk init race (https://github.com/filestar-project/lotus/commit/1718ad14cef45cef0c60092f91df37a72f249084)  
+* fix 2k devnet (https://github.com/filestar-project/lotus/commit/2231ac25d65b1030975389685bef3e33edc49691)
+* use opencl implementation PC2 with 2x speed improvement (https://github.com/filestar-project/lotus/commit/5c3fd1b2c52e0025fd6c34288361a257ec9b84c3)
+
+
 # 1.3.2
 
 This is an optional release of Filestar that upgrades Lotus dependencies, and includes many performance enhancements, bugfixes, and UX improvements.

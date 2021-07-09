@@ -29,6 +29,8 @@ var log = logging.Logger("advmgr")
 
 var ErrNoWorkers = errors.New("no suitable workers found")
 
+var seperateP1P2 bool
+
 type URLs []string
 
 type Worker interface {
@@ -99,6 +101,7 @@ type SealerConfig struct {
 	AllowCommit     bool
 	AllowUnseal     bool
 	AllowFinalize   bool
+	SeperateP1P2    bool
 }
 
 type StorageAuth http.Header
@@ -142,7 +145,7 @@ func New(ctx context.Context, ls stores.LocalStorage, si stores.SectorIndex, sc 
 	go m.sched.runSched()
 
 	localTasks := []sealtasks.TaskType{
-		 sealtasks.TTFetch, sealtasks.TTReadUnsealed,
+		sealtasks.TTFetch, sealtasks.TTReadUnsealed,
 	}
 	if sc.AllowAddPiece {
 		localTasks = append(localTasks, sealtasks.TTAddPiece)
@@ -170,7 +173,7 @@ func New(ctx context.Context, ls stores.LocalStorage, si stores.SectorIndex, sc 
 	if err != nil {
 		return nil, xerrors.Errorf("adding local worker: %w", err)
 	}
-
+	seperateP1P2 = sc.SeperateP1P2
 	return m, nil
 }
 
@@ -432,7 +435,7 @@ func (m *Manager) SealPreCommit2(ctx context.Context, sector storage.SectorRef, 
 		return storage.SectorCids{}, xerrors.Errorf("acquiring sector lock: %w", err)
 	}
 
-	selector := newExistingSelector(m.index, sector.ID, storiface.FTCache|storiface.FTSealed, true)
+	selector := newExistingSelector(m.index, sector.ID, storiface.FTCache|storiface.FTSealed, seperateP1P2)
 
 	err = m.sched.Schedule(ctx, sector, sealtasks.TTPreCommit2, selector, m.schedFetch(sector, storiface.FTCache|storiface.FTSealed, storiface.PathSealing, storiface.AcquireMove), func(ctx context.Context, w Worker) error {
 		err := m.startWork(ctx, w, wk)(w.SealPreCommit2(ctx, sector, phase1Out))
