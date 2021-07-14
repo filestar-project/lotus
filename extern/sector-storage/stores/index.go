@@ -247,6 +247,7 @@ func (i *Index) StorageDropSector(ctx context.Context, storageID ID, s abi.Secto
 			rewritten = append(rewritten, sid)
 		}
 		if len(rewritten) == 0 {
+			delete(i.sectors, d)
 			continue
 		}
 
