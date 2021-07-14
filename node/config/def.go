@@ -190,6 +190,7 @@ func DefaultStorageMiner() *StorageMiner {
 			// it's the ratio between 10gbit / 1gbit
 			ParallelFetchLimit: 10,
 			UseSharedStorage:   false,
+			SeperateP1P2:       false,
 		},
 
 		Dealmaking: DealmakingConfig{
