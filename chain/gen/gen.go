@@ -648,6 +648,7 @@ func IsRoundWinner(ctx context.Context, ts *types.TipSet, round abi.ChainEpoch,
 	ep := &types.ElectionProof{VRFProof: vrfout}
 	j := ep.ComputeWinCount(mbi.MinerPower, mbi.NetworkPower)
 	ep.WinCount = j
+
 	if j < 1 {
 		return nil, nil
 	}

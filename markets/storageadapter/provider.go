@@ -4,6 +4,8 @@ package storageadapter
 
 import (
 	"context"
+	"github.com/filecoin-project/lotus/node/modules/helpers"
+	"go.uber.org/fx"
 	"io"
 	"time"
 
@@ -52,14 +54,17 @@ type ProviderNodeAdapter struct {
 	dsMatcher                   *dealStateMatcher
 }
 
-func NewProviderNodeAdapter(fc *config.MinerFeeConfig) func(dag dtypes.StagingDAG, secb *sectorblocks.SectorBlocks, full api.FullNode) storagemarket.StorageProviderNode {
-	return func(dag dtypes.StagingDAG, secb *sectorblocks.SectorBlocks, full api.FullNode) storagemarket.StorageProviderNode {
+func NewProviderNodeAdapter(fc *config.MinerFeeConfig) func(mctx helpers.MetricsCtx, lc fx.Lifecycle, dag dtypes.StagingDAG, secb *sectorblocks.SectorBlocks, full api.FullNode) storagemarket.StorageProviderNode {
+	return func(mctx helpers.MetricsCtx, lc fx.Lifecycle, dag dtypes.StagingDAG, secb *sectorblocks.SectorBlocks, full api.FullNode) storagemarket.StorageProviderNode {
+		ctx := helpers.LifecycleCtx(mctx, lc)
+
+		ev := events.NewEvents(ctx, full)
 		na := &ProviderNodeAdapter{
 			FullNode: full,
 
 			dag:       dag,
 			secb:      secb,
-			ev:        events.NewEvents(context.TODO(), full),
+			ev:        ev,
 			dsMatcher: newDealStateMatcher(state.NewStatePredicates(state.WrapFastAPI(full))),
 		}
 		if fc != nil {

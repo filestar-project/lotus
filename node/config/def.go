@@ -11,6 +11,7 @@ import (
 // Common is common config between full node and miner
 type Common struct {
 	API    API
+	Backup Backup
 	Libp2p Libp2p
 	Pubsub Pubsub
 }
@@ -25,6 +26,10 @@ type FullNode struct {
 }
 
 // // Common
+
+type Backup struct {
+	DisableMetadataLog bool
+}
 
 // StorageMiner is a miner config
 type StorageMiner struct {
@@ -174,11 +179,12 @@ func DefaultStorageMiner() *StorageMiner {
 		},
 
 		Storage: sectorstorage.SealerConfig{
-			AllowAddPiece:   true,
-			AllowPreCommit1: true,
-			AllowPreCommit2: true,
-			AllowCommit:     true,
-			AllowUnseal:     true,
+			AllowAddPiece:   false,
+			AllowPreCommit1: false,
+			AllowPreCommit2: false,
+			AllowCommit:     false,
+			AllowUnseal:     false,
+			AllowFinalize:   false,
 
 			// Default to 10 - tcp should still be able to figure this out, and
 			// it's the ratio between 10gbit / 1gbit

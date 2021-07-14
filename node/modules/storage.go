@@ -2,6 +2,9 @@ package modules
 
 import (
 	"context"
+	"github.com/filecoin-project/lotus/node/modules/helpers"
+	"golang.org/x/xerrors"
+	"path/filepath"
 
 	"go.uber.org/fx"
 
@@ -27,11 +30,29 @@ func KeyStore(lr repo.LockedRepo) (types.KeyStore, error) {
 	return lr.KeyStore()
 }
 
-func Datastore(r repo.LockedRepo) (dtypes.MetadataDS, error) {
-	mds, err := r.Datastore("/metadata")
-	if err != nil {
-		return nil, err
-	}
+func Datastore(disableLog bool) func(lc fx.Lifecycle, mctx helpers.MetricsCtx, r repo.LockedRepo) (dtypes.MetadataDS, error) {
+	return func(lc fx.Lifecycle, mctx helpers.MetricsCtx, r repo.LockedRepo) (dtypes.MetadataDS, error) {
+		mds, err := r.Datastore("/metadata")
+		if err != nil {
+			return nil, err
+		}
 
-	return backupds.Wrap(mds), nil
+		var logdir string
+		if !disableLog {
+			logdir = filepath.Join(r.Path(), "kvlog/metadata")
+		}
+
+		bds, err := backupds.Wrap(mds, logdir)
+		if err != nil {
+			return nil, xerrors.Errorf("opening backupds: %w", err)
+		}
+
+		lc.Append(fx.Hook{
+			OnStop: func(_ context.Context) error {
+				return bds.CloseLog()
+			},
+		})
+
+		return bds, nil
+	}
 }

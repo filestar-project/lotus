@@ -452,6 +452,7 @@ func ConfigCommon(cfg *config.Common) Option {
 		Override(AddrsFactoryKey, lp2p.AddrsFactory(
 			cfg.Libp2p.AnnounceAddresses,
 			cfg.Libp2p.NoAnnounceAddresses)),
+		Override(new(dtypes.MetadataDS), modules.Datastore(cfg.Backup.DisableMetadataLog)),
 	)
 }
 
@@ -525,7 +526,6 @@ func Repo(r repo.Repo) Option {
 		return Options(
 			Override(new(repo.LockedRepo), modules.LockedRepo(lr)), // module handles closing
 
-			Override(new(dtypes.MetadataDS), modules.Datastore),
 			Override(new(dtypes.ChainRawBlockstore), modules.ChainRawBlockstore),
 			Override(new(dtypes.ChainBlockstore), From(new(dtypes.ChainRawBlockstore))),
 

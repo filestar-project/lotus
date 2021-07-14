@@ -149,6 +149,13 @@ var fsmPlanners = map[SectorState]func(events []statemachine.Event, state *Secto
 		on(SectorFaulty{}, Faulty),
 	),
 	Removing: planOne(
+		on(SectorSealPreCommit1Failed{}, Removing),
+		on(SectorRetrySealPreCommit1{}, Removing),
+		on(SectorSealPreCommit2Failed{}, Removing),
+		on(SectorRetrySealPreCommit2{}, Removing),
+		on(SectorCommitFailed{}, Removing),
+		on(SectorRetryCommitWait{}, Removing),
+		on(SectorFinalizeFailed{}, Removing),
 		on(SectorRemoved{}, Removed),
 		on(SectorRemoveFailed{}, RemoveFailed),
 	),
@@ -197,7 +204,7 @@ func (m *Sealing) logEvents(events []statemachine.Event, state *SectorInfo) {
 				Kind:      fmt.Sprintf("truncate"),
 			}
 
-			state.Log = append(state.Log[:2000], state.Log[:6000]...)
+			state.Log = append(state.Log[:2000], state.Log[6000:]...)
 		}
 
 		state.Log = append(state.Log, l)
@@ -417,8 +424,9 @@ func (m *Sealing) restartSectors(ctx context.Context) error {
 		return err
 	}
 
-	m.unsealedInfoMap.lk.Lock()
+	// m.unsealedInfoMap.lk.Lock() taken early in .New to prevent races
 	defer m.unsealedInfoMap.lk.Unlock()
+
 	for _, sector := range trackedSectors {
 		if err := m.sectors.Send(uint64(sector.SectorNumber), SectorRestart{}); err != nil {
 			log.Errorf("restarting sector %d: %+v", sector.SectorNumber, err)
