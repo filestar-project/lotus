@@ -487,6 +487,7 @@ func (sb *Sealer) SealPreCommit2(ctx context.Context, sector storage.SectorRef, 
 		if err != nil {
 			return storage.SectorCids{}, xerrors.Errorf("glob %s: %w", pattern, err)
 		}
+		log.Infof("Remove PC2 caches %v", files)
 		for _, f := range files {
 			if err := os.Remove(f); err != nil {
 				return storage.SectorCids{}, xerrors.Errorf("remove %s: %w", f, err)
