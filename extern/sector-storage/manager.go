@@ -82,6 +82,8 @@ type Manager struct {
 
 	results map[WorkID]result
 	waitRes map[WorkID]chan struct{}
+
+	bindPC1PC2 bool
 }
 
 type result struct {
@@ -99,6 +101,7 @@ type SealerConfig struct {
 	AllowCommit     bool
 	AllowUnseal     bool
 	AllowFinalize   bool
+	BindPC1PC2      bool
 }
 
 type StorageAuth http.Header
@@ -135,6 +138,7 @@ func New(ctx context.Context, ls stores.LocalStorage, si stores.SectorIndex, sc 
 		callRes:    map[storiface.CallID]chan result{},
 		results:    map[WorkID]result{},
 		waitRes:    map[WorkID]chan struct{}{},
+		bindPC1PC2: sc.BindPC1PC2,
 	}
 
 	m.setupWorkTracker()
@@ -142,7 +146,7 @@ func New(ctx context.Context, ls stores.LocalStorage, si stores.SectorIndex, sc 
 	go m.sched.runSched()
 
 	localTasks := []sealtasks.TaskType{
-		 sealtasks.TTFetch, sealtasks.TTReadUnsealed,
+		sealtasks.TTFetch, sealtasks.TTReadUnsealed,
 	}
 	if sc.AllowAddPiece {
 		localTasks = append(localTasks, sealtasks.TTAddPiece)
@@ -432,7 +436,7 @@ func (m *Manager) SealPreCommit2(ctx context.Context, sector storage.SectorRef, 
 		return storage.SectorCids{}, xerrors.Errorf("acquiring sector lock: %w", err)
 	}
 
-	selector := newExistingSelector(m.index, sector.ID, storiface.FTCache|storiface.FTSealed, true)
+	selector := newExistingSelector(m.index, sector.ID, storiface.FTCache|storiface.FTSealed, !m.bindPC1PC2)
 
 	err = m.sched.Schedule(ctx, sector, sealtasks.TTPreCommit2, selector, m.schedFetch(sector, storiface.FTCache|storiface.FTSealed, storiface.PathSealing, storiface.AcquireMove), func(ctx context.Context, w Worker) error {
 		err := m.startWork(ctx, w, wk)(w.SealPreCommit2(ctx, sector, phase1Out))
