@@ -114,7 +114,7 @@ type localWorkerPathProvider struct {
 	op storiface.AcquireMode
 }
 
-func (l *localWorkerPathProvider) AcquireSector(ctx context.Context, sector storage.SectorRef, existing storiface.SectorFileType, allocate storiface.SectorFileType, sealing storiface.PathType) (storiface.SectorPaths, func(), error) {
+func (l *localWorkerPathProvider) AcquireSector(ctx context.Context, sector storage.SectorRef, existing storiface.SectorFileType, allocate storiface.SectorFileType, sealing storiface.PathType, preDeclareSector bool) (storiface.SectorPaths, func(), error) {
 	paths, storageIDs, err := l.w.storage.AcquireSector(ctx, sector, existing, allocate, sealing, l.op)
 	if err != nil {
 		return storiface.SectorPaths{}, nil, err
@@ -127,9 +127,7 @@ func (l *localWorkerPathProvider) AcquireSector(ctx context.Context, sector stor
 
 	log.Debugf("acquired sector %d (e:%d; a:%d): %v", sector, existing, allocate, paths)
 
-	return paths, func() {
-		releaseStorage()
-
+	if preDeclareSector == true {
 		for _, fileType := range pathTypes {
 			if fileType&allocate == 0 {
 				continue
@@ -141,7 +139,27 @@ func (l *localWorkerPathProvider) AcquireSector(ctx context.Context, sector stor
 				log.Errorf("declare sector error: %+v", err)
 			}
 		}
-	}, nil
+		return paths, func() {
+			releaseStorage()
+		}, nil
+	} else {
+		return paths, func() {
+			releaseStorage()
+
+			for _, fileType := range pathTypes {
+				if fileType&allocate == 0 {
+					continue
+				}
+
+				sid := storiface.PathByType(storageIDs, fileType)
+
+				if err := l.w.sindex.StorageDeclareSector(ctx, stores.ID(sid), sector.ID, fileType, l.op == storiface.AcquireMove); err != nil {
+					log.Errorf("declare sector error: %+v", err)
+				}
+			}
+		}, nil
+	}
+
 }
 
 func (l *LocalWorker) ffiExec() (ffiwrapper.Storage, error) {
@@ -309,7 +327,7 @@ func (l *LocalWorker) AddPiece(ctx context.Context, sector storage.SectorRef, ep
 
 func (l *LocalWorker) Fetch(ctx context.Context, sector storage.SectorRef, fileType storiface.SectorFileType, ptype storiface.PathType, am storiface.AcquireMode) (storiface.CallID, error) {
 	return l.asyncCall(ctx, sector, Fetch, func(ctx context.Context, ci storiface.CallID) (interface{}, error) {
-		_, done, err := (&localWorkerPathProvider{w: l, op: am}).AcquireSector(ctx, sector, fileType, storiface.FTNone, ptype)
+		_, done, err := (&localWorkerPathProvider{w: l, op: am}).AcquireSector(ctx, sector, fileType, storiface.FTNone, ptype, false)
 		if err == nil {
 			done()
 		}
