@@ -157,7 +157,7 @@ replace github.com/filecoin-project/filecoin-ffi => ./extern/filecoin-ffi
 
 replace github.com/filecoin-project/test-vectors => ./extern/test-vectors
 
-replace github.com/filecoin-project/specs-actors/v2 => ./extern/specs-actors
+replace github.com/filecoin-project/specs-actors/v2 => github.com/filestar-project/specs-actors/v2 v2.1.1
 
 replace github.com/filecoin-project/go-state-types => github.com/filestar-project/go-state-types v0.1.0
 
