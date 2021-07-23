@@ -2,6 +2,7 @@ package full
 
 import (
 	"context"
+	"fmt"
 	"math"
 	"math/rand"
 	"sort"
@@ -214,6 +215,7 @@ func gasEstimateGasLimit(
 	msgIn *types.Message,
 	currTs *types.TipSet,
 ) (int64, error) {
+	fmt.Println("gasEstimateGasLimit", currTs.Height(), build.BlockGasLimit)
 	msg := *msgIn
 	msg.GasLimit = build.BlockGasLimit
 	msg.GasFeeCap = types.NewInt(uint64(build.MinimumBaseFee) + 1)

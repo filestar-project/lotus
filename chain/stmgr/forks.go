@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/binary"
+	"fmt"
 	"github.com/filecoin-project/lotus/chain/actors/policy"
 	"github.com/filecoin-project/lotus/chain/gen/genesis"
 	cron2 "github.com/filecoin-project/specs-actors/v2/actors/builtin/cron"
@@ -169,6 +170,7 @@ func (sm *StateManager) handleStateForks(ctx context.Context, root cid.Cid, heig
 	retCid := root
 	var err error
 	f, ok := sm.stateMigrations[height]
+	fmt.Println("handleStateForks", height)
 	if ok {
 		retCid, err = f(ctx, sm, cb, root, height, ts)
 		if err != nil {
@@ -605,6 +607,7 @@ func UpgradeRefuel(ctx context.Context, sm *StateManager, cb ExecCallback, root 
 }
 
 func UpgradeActorsV2(ctx context.Context, sm *StateManager, cb ExecCallback, root cid.Cid, epoch abi.ChainEpoch, ts *types.TipSet) (cid.Cid, error) {
+	fmt.Println("UpgradeActorsV2")
 	buf := bufbstore.NewTieredBstore(sm.cs.Blockstore(), bstore.NewTemporarySync())
 	store := store.ActorStore(ctx, buf)
 
@@ -665,6 +668,7 @@ func UpgradeLiftoff(ctx context.Context, sm *StateManager, cb ExecCallback, root
 }
 
 func Upgrade8GiBSector(ctx context.Context, sm *StateManager, cb ExecCallback, root cid.Cid, epoch abi.ChainEpoch, ts *types.TipSet) (cid.Cid, error) {
+	fmt.Println("Upgrade8GiBSector")
 	tree, err := sm.StateTree(root)
 	if err != nil {
 		return cid.Undef, xerrors.Errorf("getting state tree: %w", err)
@@ -672,8 +676,10 @@ func Upgrade8GiBSector(ctx context.Context, sm *StateManager, cb ExecCallback, r
 	policy.AddSupportedProofTypes(
 		abi.RegisteredSealProof_StackedDrg8GiBV1,
 	)
+	fmt.Println("before Upgrade8GiBSector", build.BlockGasLimit)
 	build.BlockGasLimit = build.BlockGasLimit * 4
 	build.BlockGasTarget = build.BlockGasTarget * 4
+	fmt.Println("after Upgrade8GiBSector", build.BlockGasLimit)
 	return tree.Flush(ctx)
 }
 

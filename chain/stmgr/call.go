@@ -72,6 +72,7 @@ func (sm *StateManager) Call(ctx context.Context, msg *types.Message, ts *types.
 		return nil, xerrors.Errorf("failed to set up vm: %w", err)
 	}
 
+	fmt.Println("StateManager.Call", ts.Height(), build.BlockGasLimit)
 	if msg.GasLimit == 0 {
 		msg.GasLimit = build.BlockGasLimit
 	}

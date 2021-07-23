@@ -2,6 +2,7 @@ package messagepool
 
 import (
 	"context"
+	"fmt"
 	"math/big"
 	"math/rand"
 	"sort"
@@ -117,6 +118,7 @@ func (mp *MessagePool) selectMessagesOptimal(curTs, ts *types.TipSet, tq float64
 	//    priority message selection) as we have to account for what other miners are doing
 	nextChain := 0
 	partitions := make([][]*msgChain, MaxBlocks)
+	fmt.Println("MessagePool.selectMessagesOptimal", ts.Height(), build.BlockGasLimit)
 	for i := 0; i < MaxBlocks && nextChain < len(chains); i++ {
 		gasLimit := int64(build.BlockGasLimit)
 		for nextChain < len(chains) {
@@ -527,6 +529,7 @@ func (mp *MessagePool) selectPriorityMessages(pending map[address.Address]map[ui
 	}()
 
 	result := make([]*types.SignedMessage, 0, mp.cfg.SizeLimitLow)
+	fmt.Println("MessagePool.selectPriorityMessages", ts.Height(), build.BlockGasLimit)
 	gasLimit := int64(build.BlockGasLimit)
 	minGas := int64(gasguess.MinGas)
 
@@ -679,6 +682,7 @@ func (*MessagePool) getGasReward(msg *types.SignedMessage, baseFee types.BigInt)
 }
 
 func (*MessagePool) getGasPerf(gasReward *big.Int, gasLimit int64) float64 {
+	fmt.Println("MessagePool.getGasPerf", build.BlockGasLimit)
 	// gasPerf = gasReward * build.BlockGasLimit / gasLimit
 	var bigBlockGasLimit = big.NewInt(build.BlockGasLimit)
 	a := new(big.Rat).SetInt(new(big.Int).Mul(gasReward, bigBlockGasLimit))
@@ -740,6 +744,7 @@ func (mp *MessagePool) createMessageChains(actor address.Address, mset map[uint6
 		}
 
 		gasLimit += m.Message.GasLimit
+		fmt.Println("MessagePool.createMessageChains", build.BlockGasLimit)
 		if gasLimit > build.BlockGasLimit {
 			break
 		}

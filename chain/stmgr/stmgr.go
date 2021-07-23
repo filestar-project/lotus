@@ -100,6 +100,7 @@ func NewStateManagerWithUpgradeSchedule(cs *store.ChainStore, us UpgradeSchedule
 	expensiveUpgrades := make(map[abi.ChainEpoch]struct{}, len(us))
 	var networkVersions []versionSpec
 	lastVersion := network.Version0
+	fmt.Println("NewStateManagerWithUpgradeSchedule", us)
 	if len(us) > 0 {
 		// If we have any upgrades, process them and create a version
 		// schedule.
@@ -254,7 +255,7 @@ func (sm *StateManager) ApplyBlocks(ctx context.Context, parentEpoch abi.ChainEp
 	}
 
 	runCron := func(epoch abi.ChainEpoch) error {
-
+		fmt.Println("StateManager.ApplyBlocks.runCron", epoch, build.BlockGasLimit)
 		cronMsg := &types.Message{
 			To:         cron.Address,
 			From:       builtin.SystemActorAddr,

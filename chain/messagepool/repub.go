@@ -2,6 +2,7 @@ package messagepool
 
 import (
 	"context"
+	"fmt"
 	"sort"
 	"time"
 
@@ -71,7 +72,7 @@ func (mp *MessagePool) republishPendingMessages() error {
 	sort.Slice(chains, func(i, j int) bool {
 		return chains[i].Before(chains[j])
 	})
-
+	fmt.Println("MessagePool.republishPendingMessages", build.BlockGasLimit)
 	gasLimit := int64(build.BlockGasLimit)
 	minGas := int64(gasguess.MinGas)
 	var msgs []*types.SignedMessage

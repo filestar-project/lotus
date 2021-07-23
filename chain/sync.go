@@ -1078,6 +1078,7 @@ func (syncer *Syncer) checkBlockMessages(ctx context.Context, b *types.FullBlock
 
 		// ValidForBlockInclusion checks if any single message does not exceed BlockGasLimit
 		// So below is overflow safe
+		fmt.Println("Syncer.checkBlockMessages.checkMsg", build.BlockGasLimit)
 		sumGasLimit += m.GasLimit
 		if sumGasLimit > build.BlockGasLimit {
 			return xerrors.Errorf("block gas limit exceeded")
