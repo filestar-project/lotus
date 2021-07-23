@@ -1,5 +1,15 @@
 # Lotus changelog
 
+# 1.3.4
+
+This is an optional release of Filestar that upgrades Lotus dependencies, and includes many performance enhancements, bugfixes, and UX improvements.
+
+## Changes
+* bind PC1/PC2 to same worker by default, you can also set `BindPC1PC2=false` in miner config to disable it. (https://github.com/filestar-project/lotus/pull/33)
+* upgrade bellperson to 0.14. (https://github.com/filestar-project/lotus/commit/38df477a396134c9e08a0850699f9cf472f6a983)
+* revert failed BlockGasLimit change in Upgrade8GiBSector. (https://github.com/filestar-project/lotus/commit/2e3a47ccc7ba90f48c8345e583958bbcc2ca4fe1)
+* fix cache remove when `lotus-miner sectors remove` an aborted PC1 job. (https://github.com/filestar-project/lotus/pull/34)
+
 # 1.3.3
 
 This is an optional release of Filestar that upgrades Lotus dependencies, and includes many performance enhancements, bugfixes, and UX improvements.

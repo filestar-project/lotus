@@ -32,7 +32,7 @@ func buildType() string {
 }
 
 // BuildVersion is the local build version, set by build system
-const BuildVersion = "1.3.3"
+const BuildVersion = "1.3.4"
 
 func UserVersion() string {
 	return BuildVersion + buildType() + CurrentCommit
