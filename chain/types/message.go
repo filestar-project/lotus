@@ -190,7 +190,7 @@ func (m *Message) ValidForBlockInclusion(minGas int64) error {
 	}
 
 	if m.GasLimit > build.BlockGasLimit {
-		return xerrors.New("'GasLimit' field cannot be greater than a block's gas limit")
+		return xerrors.Errorf("'GasLimit' field cannot be greater than a block's gas limit %d > %d", m.GasLimit, build.BlockGasLimit)
 	}
 
 	// since prices might vary with time, this is technically semantic validation

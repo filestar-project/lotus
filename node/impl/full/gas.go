@@ -285,7 +285,7 @@ func (m *GasModule) GasEstimateMessageGas(ctx context.Context, msg *types.Messag
 		if err != nil {
 			return nil, xerrors.Errorf("estimating gas used: %w", err)
 		}
-		msg.GasLimit = int64(float64(gasLimit) * m.Mpool.GetConfig().GasLimitOverestimation)
+		msg.GasLimit = int64(math.Min(float64(gasLimit) * m.Mpool.GetConfig().GasLimitOverestimation, float64(build.BlockGasLimit)))
 	}
 
 	if msg.GasPremium == types.EmptyInt || types.BigCmp(msg.GasPremium, types.NewInt(0)) == 0 {
