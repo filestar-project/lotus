@@ -27,6 +27,8 @@ const Upgrade8GiBSectorHeight = 13
 
 const UpgradeStakeHeight = 14
 
+const Upgrade8GiBPoStGasHeight = 15
+
 var DrandSchedule = map[abi.ChainEpoch]DrandEnum{
 	0: DrandMainnet,
 }
