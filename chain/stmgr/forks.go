@@ -102,6 +102,10 @@ func DefaultUpgradeSchedule() UpgradeSchedule {
 		Height:    build.UpgradeStakeHeight,
 		Network:   network.Version8,
 		Migration: UpgradeStake,
+	}, {
+		Height:    build.UpgradeTokenHeight,
+		Network:   network.Version9,
+		Migration: UpgradeToken,
 	}}
 
 	if build.UpgradeActorsV2Height == math.MaxInt64 { // disable actors upgrade
@@ -757,6 +761,24 @@ func UpgradeStake(ctx context.Context, sm *StateManager, cb ExecCallback, root c
 			return cid.Undef, xerrors.Errorf("recording transfers: %w", err)
 		}
 	}
+	return tree.Flush(ctx)
+}
+
+func UpgradeToken(ctx context.Context, sm *StateManager, cb ExecCallback, root cid.Cid, epoch abi.ChainEpoch, ts *types.TipSet) (cid.Cid, error) {
+	tree, err := sm.StateTree(root)
+	if err != nil {
+		return cid.Undef, xerrors.Errorf("getting state tree: %w", err)
+	}
+
+	actor, err := genesis.SetupTokenActor(sm.cs.Blockstore())
+	if err != nil {
+		return cid.Undef, xerrors.Errorf("setup token actor: %w", err)
+	}
+
+	if err = tree.SetActor(builtin2.TokenActorAddr, actor); err != nil {
+		return cid.Undef, xerrors.Errorf("setting token actor: %w", err)
+	}
+
 	return tree.Flush(ctx)
 }
 
