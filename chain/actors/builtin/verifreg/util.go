@@ -6,6 +6,7 @@ import (
 	"github.com/filecoin-project/go-state-types/big"
 	"github.com/filecoin-project/lotus/chain/actors"
 	"github.com/filecoin-project/lotus/chain/actors/adt"
+	builtin3 "github.com/filecoin-project/specs-actors/v3/actors/builtin"
 	"github.com/ipfs/go-cid"
 	"golang.org/x/xerrors"
 )
@@ -15,7 +16,7 @@ func getDataCap(store adt.Store, ver actors.Version, root cid.Cid, addr address.
 		return false, big.Zero(), xerrors.Errorf("can only look up ID addresses")
 	}
 
-	vh, err := adt.AsMap(store, root, ver)
+	vh, err := adt.AsMap(store, root, ver, builtin3.DefaultHamtBitwidth)
 	if err != nil {
 		return false, big.Zero(), xerrors.Errorf("loading verifreg: %w", err)
 	}
@@ -31,7 +32,7 @@ func getDataCap(store adt.Store, ver actors.Version, root cid.Cid, addr address.
 }
 
 func forEachCap(store adt.Store, ver actors.Version, root cid.Cid, cb func(addr address.Address, dcap abi.StoragePower) error) error {
-	vh, err := adt.AsMap(store, root, ver)
+	vh, err := adt.AsMap(store, root, ver, builtin3.DefaultHamtBitwidth)
 	if err != nil {
 		return xerrors.Errorf("loading verified clients: %w", err)
 	}

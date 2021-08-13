@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	builtin3 "github.com/filecoin-project/specs-actors/v3/actors/builtin"
 
 	"github.com/ipfs/go-cid"
 	cbor "github.com/ipfs/go-ipld-cbor"
@@ -169,7 +170,7 @@ func NewStateTree(cst cbor.IpldStore, ver types.StateTreeVersion) (*StateTree, e
 	default:
 		return nil, xerrors.Errorf("unsupported state tree version: %d", ver)
 	}
-	root, err := adt.NewMap(adt.WrapStore(context.TODO(), cst), adtForSTVersion(ver))
+	root, err := adt.NewMap(adt.WrapStore(context.TODO(), cst), adtForSTVersion(ver), builtin3.DefaultHamtBitwidth)
 	if err != nil {
 		return nil, err
 	}
@@ -200,6 +201,7 @@ func LoadStateTree(cst cbor.IpldStore, c cid.Cid) (*StateTree, error) {
 		nd, err := adt.AsMap(
 			adt.WrapStore(context.TODO(), cst), root.Actors,
 			adtForSTVersion(root.Version),
+			builtin3.DefaultHamtBitwidth,
 		)
 		if err != nil {
 			log.Errorf("loading hamt node %s failed: %s", c, err)
