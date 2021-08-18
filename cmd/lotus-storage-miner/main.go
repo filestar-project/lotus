@@ -38,7 +38,6 @@ func main() {
 		backupCmd,
 		lcli.WithCategory("chain", actorCmd),
 		lcli.WithCategory("chain", infoCmd),
-		lcli.WithCategory("chain", listVestingCmd),
 		lcli.WithCategory("market", storageDealsCmd),
 		lcli.WithCategory("market", retrievalDealsCmd),
 		lcli.WithCategory("market", dataTransfersCmd),

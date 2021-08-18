@@ -7,8 +7,8 @@ import (
 	"github.com/filecoin-project/go-state-types/big"
 	"github.com/filecoin-project/go-state-types/cbor"
 	builtin2 "github.com/filecoin-project/specs-actors/v2/actors/builtin"
-	stake2 "github.com/filecoin-project/specs-actors/v2/actors/builtin/stake"
-	adt2 "github.com/filecoin-project/specs-actors/v2/actors/util/adt"
+	builtin3 "github.com/filecoin-project/specs-actors/v3/actors/builtin"
+	stake3 "github.com/filecoin-project/specs-actors/v3/actors/builtin/stake"
 
 	"github.com/ipfs/go-cid"
 	"golang.org/x/xerrors"
@@ -20,15 +20,21 @@ import (
 
 func init() {
 	builtin.RegisterActorState(builtin2.StakeActorCodeID, func(store adt.Store, root cid.Cid) (cbor.Marshaler, error) {
-		return load(store, root)
+		return load2(store, root)
+	})
+	builtin.RegisterActorState(builtin3.StakeActorCodeID, func(store adt.Store, root cid.Cid) (cbor.Marshaler, error) {
+		return load3(store, root)
 	})
 }
 
 var (
-	Address                    = builtin2.StakeActorAddr
-	Methods                    = builtin2.MethodsStake
+	Address                    = builtin3.StakeActorAddr
+	Methods                    = builtin3.MethodsStake
 	UnsupportedAddressProtocol = errors.New("address must be ID format")
 )
+
+type LockedPrincipal = stake3.LockedPrincipal
+type VestingFund = stake3.VestingFund
 
 type State interface {
 	cbor.Marshaler
@@ -54,142 +60,12 @@ type StakeInfo struct {
 	NextRoundEpoch        abi.ChainEpoch
 }
 
-type LockedPrincipal = stake2.LockedPrincipal
-type VestingFund = stake2.VestingFund
-
 func Load(store adt.Store, act *types.Actor) (st State, err error) {
 	switch act.Code {
 	case builtin2.StakeActorCodeID:
-		return load(store, act.Head)
+		return load2(store, act.Head)
+	case builtin3.StakeActorCodeID:
+		return load3(store, act.Head)
 	}
 	return nil, xerrors.Errorf("unknown actor code %s", act.Code)
-}
-
-func load(store adt.Store, root cid.Cid) (State, error) {
-	out := state{store: store}
-	err := store.Get(store.Context(), root, &out)
-	if err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-type state struct {
-	stake2.State
-	store adt.Store
-}
-
-var _ State = (*state)(nil)
-
-func (s *state) GetInfo() (*StakeInfo, error) {
-	return &StakeInfo{
-		s.State.TotalStakePower,
-		s.State.MaturePeriod,
-		s.State.RoundPeriod,
-		s.State.PrincipalLockDuration,
-		s.State.MinDepositAmount,
-		s.State.MaxRewardPerRound,
-		s.State.InflationFactor,
-		s.State.LastRoundReward,
-		s.State.NextRoundEpoch,
-	}, nil
-}
-
-func (s *state) StakerPower(staker address.Address) (abi.StakePower, error) {
-	power := abi.NewStakePower(0)
-	if staker.Protocol() != address.ID {
-		return power, UnsupportedAddressProtocol
-	}
-	stakePowerMap, err := adt2.AsMap(s.store, s.State.StakePowerMap)
-	if err != nil {
-		return power, err
-	}
-	_, err = stakePowerMap.Get(abi.AddrKey(staker), &power)
-	return power, err
-}
-
-func (s *state) StakerLockedPrincipalList(staker address.Address) ([]LockedPrincipal, error) {
-	if staker.Protocol() != address.ID {
-		return nil, UnsupportedAddressProtocol
-	}
-	lockedPrincipalMap, err := adt2.AsMap(s.store, s.State.LockedPrincipalMap)
-	if err != nil {
-		return nil, err
-	}
-	lockedPrincipals, found, err := s.State.LoadLockedPrincipals(s.store, lockedPrincipalMap, staker)
-	if err != nil || !found {
-		return nil, err
-	}
-	return lockedPrincipals.Data, nil
-}
-
-func (s *state) StakerLockedPrincipal(staker address.Address) (abi.TokenAmount, error) {
-	lockedPrincipal := abi.NewTokenAmount(0)
-	if staker.Protocol() != address.ID {
-		return lockedPrincipal, UnsupportedAddressProtocol
-	}
-	list, err := s.StakerLockedPrincipalList(staker)
-	if err != nil {
-		return lockedPrincipal, err
-	}
-	for _, item := range list {
-		lockedPrincipal = big.Add(lockedPrincipal, item.Amount)
-	}
-	return lockedPrincipal, nil
-}
-
-func (s *state) StakerAvailablePrincipal(staker address.Address) (abi.TokenAmount, error) {
-	availablePrincipal := abi.NewTokenAmount(0)
-	if staker.Protocol() != address.ID {
-		return availablePrincipal, UnsupportedAddressProtocol
-	}
-	availablePrincipalMap, err := adt2.AsMap(s.store, s.State.AvailablePrincipalMap)
-	if err != nil {
-		return availablePrincipal, err
-	}
-	_, err = availablePrincipalMap.Get(abi.AddrKey(staker), &availablePrincipal)
-	return availablePrincipal, err
-}
-
-func (s *state) StakerVestingRewardList(staker address.Address) ([]VestingFund, error) {
-	if staker.Protocol() != address.ID {
-		return nil, UnsupportedAddressProtocol
-	}
-	vestingRewardMap, err := adt2.AsMap(s.store, s.State.VestingRewardMap)
-	if err != nil {
-		return nil, err
-	}
-	vestingFunds, found, err := s.State.LoadVestingFunds(s.store, vestingRewardMap, staker)
-	if err != nil || !found {
-		return nil, err
-	}
-	return vestingFunds.Funds, nil
-}
-
-func (s *state) StakerVestingReward(staker address.Address) (abi.TokenAmount, error) {
-	vestingReward := abi.NewTokenAmount(0)
-	if staker.Protocol() != address.ID {
-		return vestingReward, UnsupportedAddressProtocol
-	}
-	list, err := s.StakerVestingRewardList(staker)
-	if err != nil {
-		return vestingReward, err
-	}
-	for _, item := range list {
-		vestingReward = big.Add(vestingReward, item.Amount)
-	}
-	return vestingReward, nil
-}
-
-func (s *state) StakerAvailableReward(staker address.Address) (abi.TokenAmount, error) {
-	availableReward := abi.NewTokenAmount(0)
-	if staker.Protocol() != address.ID {
-		return availableReward, UnsupportedAddressProtocol
-	}
-	availableRewardMap, err := adt2.AsMap(s.store, s.State.AvailableRewardMap)
-	if err != nil {
-		return availableReward, err
-	}
-	_, err = availableRewardMap.Get(abi.AddrKey(staker), &availableReward)
-	return availableReward, err
 }

@@ -195,7 +195,6 @@ type FullNodeStruct struct {
 		StateMinerInitialPledgeCollateral  func(context.Context, address.Address, miner.SectorPreCommitInfo, types.TipSetKey) (types.BigInt, error)            `perm:"read"`
 		StateMinerAvailableBalance         func(context.Context, address.Address, types.TipSetKey) (types.BigInt, error)                                       `perm:"read"`
 		StateMinerSectorAllocated          func(context.Context, address.Address, abi.SectorNumber, types.TipSetKey) (bool, error)                             `perm:"read"`
-		StateMinerVestingFunds             func(context.Context, address.Address, types.TipSetKey) (*miner.VestingFunds, error)                                `perm:"read"`
 		StateSectorPreCommitInfo           func(context.Context, address.Address, abi.SectorNumber, types.TipSetKey) (miner.SectorPreCommitOnChainInfo, error) `perm:"read"`
 		StateSectorGetInfo                 func(context.Context, address.Address, abi.SectorNumber, types.TipSetKey) (*miner.SectorOnChainInfo, error)         `perm:"read"`
 		StateSectorExpiration              func(context.Context, address.Address, abi.SectorNumber, types.TipSetKey) (*miner.SectorExpiration, error)          `perm:"read"`
@@ -972,10 +971,6 @@ func (c *FullNodeStruct) StateMinerAvailableBalance(ctx context.Context, maddr a
 
 func (c *FullNodeStruct) StateMinerSectorAllocated(ctx context.Context, maddr address.Address, s abi.SectorNumber, tsk types.TipSetKey) (bool, error) {
 	return c.Internal.StateMinerSectorAllocated(ctx, maddr, s, tsk)
-}
-
-func (c *FullNodeStruct) StateMinerVestingFunds(ctx context.Context, maddr address.Address, tsk types.TipSetKey) (*miner.VestingFunds, error) {
-	return c.Internal.StateMinerVestingFunds(ctx, maddr, tsk)
 }
 
 func (c *FullNodeStruct) StateSectorPreCommitInfo(ctx context.Context, maddr address.Address, n abi.SectorNumber, tsk types.TipSetKey) (miner.SectorPreCommitOnChainInfo, error) {

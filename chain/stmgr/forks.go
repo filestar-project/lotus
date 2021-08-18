@@ -4,9 +4,13 @@ import (
 	"bytes"
 	"context"
 	"encoding/binary"
+	"github.com/filecoin-project/go-state-types/rt"
 	"github.com/filecoin-project/lotus/chain/gen/genesis"
 	cron2 "github.com/filecoin-project/specs-actors/v2/actors/builtin/cron"
+	"github.com/filecoin-project/specs-actors/v3/actors/migration/nv9"
 	"math"
+	"runtime"
+	"time"
 
 	"github.com/filecoin-project/lotus/chain/actors/builtin"
 
@@ -42,23 +46,88 @@ import (
 	"github.com/filecoin-project/lotus/lib/bufbstore"
 )
 
-// UpgradeFunc is a migration function run at every upgrade.
+// MigrationCache can be used to cache information used by a migration. This is primarily useful to
+// "pre-compute" some migration state ahead of time, and make it accessible in the migration itself.
+type MigrationCache interface {
+	Write(key string, value cid.Cid) error
+	Read(key string) (bool, cid.Cid, error)
+	Load(key string, loadFunc func() (cid.Cid, error)) (cid.Cid, error)
+}
+
+// MigrationFunc is a migration function run at every upgrade.
 //
+// - The cache is a per-upgrade cache, pre-populated by pre-migrations.
 // - The oldState is the state produced by the upgrade epoch.
 // - The returned newState is the new state that will be used by the next epoch.
 // - The height is the upgrade epoch height (already executed).
 // - The tipset is the tipset for the last non-null block before the upgrade. Do
 //   not assume that ts.Height() is the upgrade height.
-type UpgradeFunc func(ctx context.Context, sm *StateManager, cb ExecCallback, oldState cid.Cid, height abi.ChainEpoch, ts *types.TipSet) (newState cid.Cid, err error)
+type MigrationFunc func(
+	ctx context.Context,
+	sm *StateManager, cache MigrationCache,
+	cb ExecCallback, oldState cid.Cid,
+	height abi.ChainEpoch, ts *types.TipSet,
+) (newState cid.Cid, err error)
+
+// PreMigrationFunc is a function run _before_ a network upgrade to pre-compute part of the network
+// upgrade and speed it up.
+type PreMigrationFunc func(
+	ctx context.Context,
+	sm *StateManager, cache MigrationCache,
+	oldState cid.Cid,
+	height abi.ChainEpoch, ts *types.TipSet,
+) error
+
+// PreMigration describes a pre-migration step to prepare for a network state upgrade. Pre-migrations
+// are optimizations, are not guaranteed to run, and may be canceled and/or run multiple times.
+type PreMigration struct {
+	// PreMigration is the pre-migration function to run at the specified time. This function is
+	// run asynchronously and must abort promptly when canceled.
+	PreMigration PreMigrationFunc
+
+	// StartWithin specifies that this pre-migration should be started at most StartWithin
+	// epochs before the upgrade.
+	StartWithin abi.ChainEpoch
+
+	// DontStartWithin specifies that this pre-migration should not be started DontStartWithin
+	// epochs before the final upgrade epoch.
+	//
+	// This should be set such that the pre-migration is likely to complete before StopWithin.
+	DontStartWithin abi.ChainEpoch
+
+	// StopWithin specifies that this pre-migration should be stopped StopWithin epochs of the
+	// final upgrade epoch.
+	StopWithin abi.ChainEpoch
+}
 
 type Upgrade struct {
 	Height    abi.ChainEpoch
 	Network   network.Version
 	Expensive bool
-	Migration UpgradeFunc
+	Migration MigrationFunc
+
+	// PreMigrations specifies a set of pre-migration functions to run at the indicated epochs.
+	// These functions should fill the given cache with information that can speed up the
+	// eventual full migration at the upgrade epoch.
+	PreMigrations []PreMigration
 }
 
 type UpgradeSchedule []Upgrade
+
+type migrationLogger struct{}
+
+func (ml migrationLogger) Log(level rt.LogLevel, msg string, args ...interface{}) {
+	switch level {
+	case rt.DEBUG:
+		log.Debugf(msg, args...)
+	case rt.INFO:
+		log.Infof(msg, args...)
+	case rt.WARN:
+		log.Warnf(msg, args...)
+	case rt.ERROR:
+		log.Errorf(msg, args...)
+	}
+}
 
 func DefaultUpgradeSchedule() UpgradeSchedule {
 	var us UpgradeSchedule
@@ -108,12 +177,28 @@ func DefaultUpgradeSchedule() UpgradeSchedule {
 		Network:   network.Version8,
 		Migration: nil,
 	}, {
+		Height:    build.UpgradeActorsV3Height,
+		Network:   network.Version9,
+		Migration: UpgradeActorsV3,
+		PreMigrations: []PreMigration{{
+			PreMigration:    PreUpgradeActorsV3,
+			StartWithin:     120,
+			DontStartWithin: 60,
+			StopWithin:      35,
+		}, {
+			PreMigration:    PreUpgradeActorsV3,
+			StartWithin:     30,
+			DontStartWithin: 15,
+			StopWithin:      5,
+		}},
+		Expensive: true,
+	}, {
 		Height:    build.UpgradeTokenHeight,
 		Network:   network.Version9,
-		Migration: UpgradeToken,
+		Migration: UpgradeTokenV3,
 	}}
 
-	if build.UpgradeActorsV2Height == math.MaxInt64 { // disable actors upgrade
+	if build.UpgradeActorsV3Height == math.MaxInt64 { // disable actors upgrade
 		updates = []Upgrade{{
 			Height:    build.UpgradeBreezeHeight,
 			Network:   network.Version1,
@@ -134,6 +219,18 @@ func DefaultUpgradeSchedule() UpgradeSchedule {
 			Height:    build.UpgradeLiftoffHeight,
 			Network:   network.Version3,
 			Migration: UpgradeLiftoff,
+		}, {
+			Height:    build.UpgradeKumquatHeight,
+			Network:   network.Version6,
+			Migration: nil,
+		}, {
+			Height:    build.Upgrade8GiBSectorHeight,
+			Network:   network.Version7,
+			Migration: nil,
+		}, {
+			Height:    build.UpgradeStakeHeight,
+			Network:   network.Version8,
+			Migration: UpgradeStake,
 		}}
 	}
 
@@ -177,12 +274,28 @@ func (us UpgradeSchedule) Validate() error {
 func (sm *StateManager) handleStateForks(ctx context.Context, root cid.Cid, height abi.ChainEpoch, cb ExecCallback, ts *types.TipSet) (cid.Cid, error) {
 	retCid := root
 	var err error
-	f, ok := sm.stateMigrations[height]
-	if ok {
-		retCid, err = f(ctx, sm, cb, root, height, ts)
+	u := sm.stateMigrations[height]
+	if u != nil && u.upgrade != nil {
+		startTime := time.Now()
+		log.Warnw("STARTING migration", "height", height, "from", root)
+		// Yes, we clone the cache, even for the final upgrade epoch. Why? Reverts. We may
+		// have to migrate multiple times.
+		tmpCache := u.cache.Clone()
+		retCid, err = u.upgrade(ctx, sm, tmpCache, cb, root, height, ts)
 		if err != nil {
+			log.Errorw("FAILED migration", "height", height, "from", root, "error", err)
 			return cid.Undef, err
 		}
+		// Yes, we update the cache, even for the final upgrade epoch. Why? Reverts. This
+		// can save us a _lot_ of time because very few actors will have changed if we
+		// do a small revert then need to re-run the migration.
+		u.cache.Update(tmpCache)
+		log.Warnw("COMPLETED migration",
+			"height", height,
+			"from", root,
+			"to", retCid,
+			"duration", time.Since(startTime),
+		)
 	}
 
 	return retCid, nil
@@ -246,7 +359,7 @@ func doTransfer(tree types.StateTree, from, to address.Address, amt abi.TokenAmo
 	return nil
 }
 
-func UpgradeFaucetBurnRecovery(ctx context.Context, sm *StateManager, cb ExecCallback, root cid.Cid, epoch abi.ChainEpoch, ts *types.TipSet) (cid.Cid, error) {
+func UpgradeFaucetBurnRecovery(ctx context.Context, sm *StateManager, _ MigrationCache, cb ExecCallback, root cid.Cid, epoch abi.ChainEpoch, ts *types.TipSet) (cid.Cid, error) {
 	// Some initial parameters
 	FundsForMiners := types.FromFil(1_000_000)
 	LookbackEpoch := abi.ChainEpoch(32000)
@@ -532,7 +645,7 @@ func UpgradeFaucetBurnRecovery(ctx context.Context, sm *StateManager, cb ExecCal
 	return tree.Flush(ctx)
 }
 
-func UpgradeIgnition(ctx context.Context, sm *StateManager, cb ExecCallback, root cid.Cid, epoch abi.ChainEpoch, ts *types.TipSet) (cid.Cid, error) {
+func UpgradeIgnition(ctx context.Context, sm *StateManager, _ MigrationCache, cb ExecCallback, root cid.Cid, epoch abi.ChainEpoch, ts *types.TipSet) (cid.Cid, error) {
 	store := sm.cs.Store(ctx)
 
 	if build.UpgradeLiftoffHeight <= epoch {
@@ -587,7 +700,7 @@ func UpgradeIgnition(ctx context.Context, sm *StateManager, cb ExecCallback, roo
 	return tree.Flush(ctx)
 }
 
-func UpgradeRefuel(ctx context.Context, sm *StateManager, cb ExecCallback, root cid.Cid, epoch abi.ChainEpoch, ts *types.TipSet) (cid.Cid, error) {
+func UpgradeRefuel(ctx context.Context, sm *StateManager, _ MigrationCache, cb ExecCallback, root cid.Cid, epoch abi.ChainEpoch, ts *types.TipSet) (cid.Cid, error) {
 
 	store := sm.cs.Store(ctx)
 	tree, err := sm.StateTree(root)
@@ -613,7 +726,7 @@ func UpgradeRefuel(ctx context.Context, sm *StateManager, cb ExecCallback, root 
 	return tree.Flush(ctx)
 }
 
-func UpgradeActorsV2(ctx context.Context, sm *StateManager, cb ExecCallback, root cid.Cid, epoch abi.ChainEpoch, ts *types.TipSet) (cid.Cid, error) {
+func UpgradeActorsV2(ctx context.Context, sm *StateManager, _ MigrationCache, cb ExecCallback, root cid.Cid, epoch abi.ChainEpoch, ts *types.TipSet) (cid.Cid, error) {
 	buf := bufbstore.NewTieredBstore(sm.cs.Blockstore(), bstore.NewTemporarySync())
 	store := store.ActorStore(ctx, buf)
 
@@ -659,7 +772,7 @@ func UpgradeActorsV2(ctx context.Context, sm *StateManager, cb ExecCallback, roo
 	return newRoot, nil
 }
 
-func UpgradeLiftoff(ctx context.Context, sm *StateManager, cb ExecCallback, root cid.Cid, epoch abi.ChainEpoch, ts *types.TipSet) (cid.Cid, error) {
+func UpgradeLiftoff(ctx context.Context, sm *StateManager, _ MigrationCache, cb ExecCallback, root cid.Cid, epoch abi.ChainEpoch, ts *types.TipSet) (cid.Cid, error) {
 	tree, err := sm.StateTree(root)
 	if err != nil {
 		return cid.Undef, xerrors.Errorf("getting state tree: %w", err)
@@ -673,7 +786,169 @@ func UpgradeLiftoff(ctx context.Context, sm *StateManager, cb ExecCallback, root
 	return tree.Flush(ctx)
 }
 
-func UpgradeStake(ctx context.Context, sm *StateManager, cb ExecCallback, root cid.Cid, epoch abi.ChainEpoch, ts *types.TipSet) (cid.Cid, error) {
+func terminateActor(ctx context.Context, tree *state.StateTree, addr address.Address, cb ExecCallback, epoch abi.ChainEpoch) error {
+	a, err := tree.GetActor(addr)
+	if xerrors.Is(err, types.ErrActorNotFound) {
+		return types.ErrActorNotFound
+	} else if err != nil {
+		return xerrors.Errorf("failed to get actor to delete: %w", err)
+	}
+
+	var trace types.ExecutionTrace
+	if err := doTransfer(tree, addr, builtin.BurntFundsActorAddr, a.Balance, func(t types.ExecutionTrace) {
+		trace = t
+	}); err != nil {
+		return xerrors.Errorf("transferring terminated actor's balance: %w", err)
+	}
+
+	if cb != nil {
+		// record the transfer in execution traces
+
+		fakeMsg := makeFakeMsg(builtin.SystemActorAddr, addr, big.Zero(), uint64(epoch))
+
+		if err := cb(fakeMsg.Cid(), fakeMsg, &vm.ApplyRet{
+			MessageReceipt: *makeFakeRct(),
+			ActorErr:       nil,
+			ExecutionTrace: trace,
+			Duration:       0,
+			GasCosts:       nil,
+		}); err != nil {
+			return xerrors.Errorf("recording transfers: %w", err)
+		}
+	}
+
+	err = tree.DeleteActor(addr)
+	if err != nil {
+		return xerrors.Errorf("deleting actor from tree: %w", err)
+	}
+
+	ia, err := tree.GetActor(init_.Address)
+	if err != nil {
+		return xerrors.Errorf("loading init actor: %w", err)
+	}
+
+	ias, err := init_.Load(&state.AdtStore{IpldStore: tree.Store}, ia)
+	if err != nil {
+		return xerrors.Errorf("loading init actor state: %w", err)
+	}
+
+	if err := ias.Remove(addr); err != nil {
+		return xerrors.Errorf("deleting entry from address map: %w", err)
+	}
+
+	nih, err := tree.Store.Put(ctx, ias)
+	if err != nil {
+		return xerrors.Errorf("writing new init actor state: %w", err)
+	}
+
+	ia.Head = nih
+
+	return tree.SetActor(init_.Address, ia)
+}
+
+func UpgradeActorsV3(ctx context.Context, sm *StateManager, cache MigrationCache, cb ExecCallback, root cid.Cid, epoch abi.ChainEpoch, ts *types.TipSet) (cid.Cid, error) {
+	// Use all the CPUs except 3.
+	workerCount := runtime.NumCPU() - 3
+	if workerCount <= 0 {
+		workerCount = 1
+	}
+
+	config := nv9.Config{
+		MaxWorkers:        uint(workerCount),
+		JobQueueSize:      1000,
+		ResultQueueSize:   100,
+		ProgressLogPeriod: 10 * time.Second,
+	}
+	newRoot, err := upgradeActorsV3Common(ctx, sm, cache, root, epoch, ts, config)
+	if err != nil {
+		return cid.Undef, xerrors.Errorf("migrating actors v3 state: %w", err)
+	}
+
+	tree, err := sm.StateTree(newRoot)
+	if err != nil {
+		return cid.Undef, xerrors.Errorf("getting state tree: %w", err)
+	}
+
+	if build.BuildType == build.BuildMainnet {
+		err := terminateActor(ctx, tree, build.ZeroAddress, cb, epoch)
+		if err != nil && !xerrors.Is(err, types.ErrActorNotFound) {
+			return cid.Undef, xerrors.Errorf("deleting zero bls actor: %w", err)
+		}
+
+		newRoot, err = tree.Flush(ctx)
+		if err != nil {
+			return cid.Undef, xerrors.Errorf("flushing state tree: %w", err)
+		}
+	}
+
+	return newRoot, nil
+}
+
+func PreUpgradeActorsV3(ctx context.Context, sm *StateManager, cache MigrationCache, root cid.Cid, epoch abi.ChainEpoch, ts *types.TipSet) error {
+	// Use half the CPUs for pre-migration, but leave at least 3.
+	workerCount := runtime.NumCPU()
+	if workerCount <= 4 {
+		workerCount = 1
+	} else {
+		workerCount /= 2
+	}
+	config := nv9.Config{MaxWorkers: uint(workerCount)}
+	_, err := upgradeActorsV3Common(ctx, sm, cache, root, epoch, ts, config)
+	return err
+}
+
+func upgradeActorsV3Common(
+	ctx context.Context, sm *StateManager, cache MigrationCache,
+	root cid.Cid, epoch abi.ChainEpoch, ts *types.TipSet,
+	config nv9.Config,
+) (cid.Cid, error) {
+	buf := bufbstore.NewTieredBstore(sm.cs.Blockstore(), bstore.NewTemporarySync())
+	store := store.ActorStore(ctx, buf)
+
+	// Load the state root.
+	var stateRoot types.StateRoot
+	if err := store.Get(ctx, root, &stateRoot); err != nil {
+		return cid.Undef, xerrors.Errorf("failed to decode state root: %w", err)
+	}
+
+	if stateRoot.Version != types.StateTreeVersion1 {
+		return cid.Undef, xerrors.Errorf(
+			"expected state root version 1 for actors v3 upgrade, got %d",
+			stateRoot.Version,
+		)
+	}
+
+	// Perform the migration
+	newHamtRoot, err := nv9.MigrateStateTree(ctx, store, stateRoot.Actors, epoch, config, migrationLogger{}, cache)
+	if err != nil {
+		return cid.Undef, xerrors.Errorf("upgrading to actors v2: %w", err)
+	}
+
+	// Persist the result.
+	newRoot, err := store.Put(ctx, &types.StateRoot{
+		Version: types.StateTreeVersion2,
+		Actors:  newHamtRoot,
+		Info:    stateRoot.Info,
+	})
+	if err != nil {
+		return cid.Undef, xerrors.Errorf("failed to persist new state root: %w", err)
+	}
+
+	// Persist the new tree.
+
+	{
+		from := buf
+		to := buf.Read()
+
+		if err := vm.Copy(ctx, from, to, newRoot); err != nil {
+			return cid.Undef, xerrors.Errorf("copying migrated tree: %w", err)
+		}
+	}
+
+	return newRoot, nil
+}
+
+func UpgradeStake(ctx context.Context, sm *StateManager, _ MigrationCache, cb ExecCallback, root cid.Cid, epoch abi.ChainEpoch, ts *types.TipSet) (cid.Cid, error) {
 	tree, err := sm.StateTree(root)
 	if err != nil {
 		return cid.Undef, xerrors.Errorf("getting state tree: %w", err)
@@ -756,7 +1031,7 @@ func UpgradeStake(ctx context.Context, sm *StateManager, cb ExecCallback, root c
 	return tree.Flush(ctx)
 }
 
-func UpgradeToken(ctx context.Context, sm *StateManager, cb ExecCallback, root cid.Cid, epoch abi.ChainEpoch, ts *types.TipSet) (cid.Cid, error) {
+func UpgradeTokenV3(ctx context.Context, sm *StateManager, _ MigrationCache, cb ExecCallback, root cid.Cid, epoch abi.ChainEpoch, ts *types.TipSet) (cid.Cid, error) {
 	tree, err := sm.StateTree(root)
 	if err != nil {
 		return cid.Undef, xerrors.Errorf("getting state tree: %w", err)
@@ -1036,4 +1311,21 @@ func resetMultisigVesting0(ctx context.Context, store adt0.Store, tree *state.St
 	}
 
 	return nil
+}
+
+func makeFakeMsg(from address.Address, to address.Address, amt abi.TokenAmount, nonce uint64) *types.Message {
+	return &types.Message{
+		From:  from,
+		To:    to,
+		Value: amt,
+		Nonce: nonce,
+	}
+}
+
+func makeFakeRct() *types.MessageReceipt {
+	return &types.MessageReceipt{
+		ExitCode: 0,
+		Return:   nil,
+		GasUsed:  0,
+	}
 }

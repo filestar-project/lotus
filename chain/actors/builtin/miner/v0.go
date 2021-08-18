@@ -63,21 +63,6 @@ func (s *state0) VestedFunds(epoch abi.ChainEpoch) (abi.TokenAmount, error) {
 	return s.CheckVestedFunds(s.store, epoch)
 }
 
-func (s *state0) LoadVestingFunds() (*VestingFunds, error) {
-	vfs, err := s.State.LoadVestingFunds(s.store)
-	if err != nil {
-		return nil, err
-	}
-	result := &VestingFunds{}
-	for _, value := range vfs.Funds {
-		result.Funds = append(result.Funds, VestingFund{
-			value.Epoch,
-			value.Amount,
-		})
-	}
-	return result, nil
-}
-
 func (s *state0) LockedFunds() (LockedFunds, error) {
 	return LockedFunds{
 		VestingFunds:             s.State.LockedFunds,
@@ -312,6 +297,11 @@ func (s *state0) Info() (MinerInfo, error) {
 		pid = &peerID
 	}
 
+	wpp, err := info.SealProofType.RegisteredWindowPoStProof()
+	if err != nil {
+		return MinerInfo{}, err
+	}
+
 	mi := MinerInfo{
 		Owner:            info.Owner,
 		Worker:           info.Worker,
@@ -322,7 +312,7 @@ func (s *state0) Info() (MinerInfo, error) {
 
 		PeerId:                     pid,
 		Multiaddrs:                 info.Multiaddrs,
-		SealProofType:              info.SealProofType,
+		WindowPoStProofType:        wpp,
 		SectorSize:                 info.SectorSize,
 		WindowPoStPartitionSectors: info.WindowPoStPartitionSectors,
 		ConsensusFaultElapsed:      -1,

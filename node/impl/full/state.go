@@ -1215,30 +1215,6 @@ func (a *StateAPI) StateMinerSectorAllocated(ctx context.Context, maddr address.
 	return mas.IsAllocated(s)
 }
 
-func (a *StateAPI) StateMinerVestingFunds(ctx context.Context, maddr address.Address, tsk types.TipSetKey) (*miner.VestingFunds, error) {
-	ts, err := a.Chain.GetTipSetFromKey(tsk)
-	if err != nil {
-		return nil, xerrors.Errorf("loading tipset %s: %w", tsk, err)
-	}
-
-	act, err := a.StateManager.LoadActor(ctx, maddr, ts)
-	if err != nil {
-		return nil, xerrors.Errorf("failed to load miner actor: %w", err)
-	}
-
-	mas, err := miner.Load(a.StateManager.ChainStore().Store(ctx), act)
-	if err != nil {
-		return nil, xerrors.Errorf("failed to load miner actor state: %w", err)
-	}
-
-	vfs, err := mas.LoadVestingFunds()
-	if err != nil {
-		return nil, err
-	}
-
-	return vfs, nil
-}
-
 // StateVerifiedClientStatus returns the data cap for the given address.
 // Returns zero if there is no entry in the data cap table for the
 // address.

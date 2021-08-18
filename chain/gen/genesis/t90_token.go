@@ -7,7 +7,7 @@ import (
 
 	"github.com/filecoin-project/lotus/chain/types"
 	bstore "github.com/filecoin-project/lotus/lib/blockstore"
-	"github.com/filecoin-project/specs-actors/v3/actors/util/adt"
+	"github.com/filecoin-project/specs-actors/actors/util/adt"
 	cbor "github.com/ipfs/go-ipld-cbor"
 
 )

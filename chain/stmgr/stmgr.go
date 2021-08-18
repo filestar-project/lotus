@@ -20,6 +20,9 @@ import (
 
 	// Used for genesis.
 	msig0 "github.com/filecoin-project/specs-actors/actors/builtin/multisig"
+	"github.com/filecoin-project/specs-actors/v3/actors/migration/nv9"
+
+	blockadt "github.com/filecoin-project/specs-actors/actors/util/adt"
 
 	"github.com/filecoin-project/lotus/api"
 	"github.com/filecoin-project/lotus/build"
@@ -59,6 +62,12 @@ type versionSpec struct {
 	atOrBelow      abi.ChainEpoch
 }
 
+type migration struct {
+	upgrade       MigrationFunc
+	preMigrations []PreMigration
+	cache         *nv9.MemMigrationCache
+}
+
 type StateManager struct {
 	cs *store.ChainStore
 
@@ -67,7 +76,7 @@ type StateManager struct {
 	latestVersion   network.Version
 
 	// Maps chain epochs to upgrade functions.
-	stateMigrations map[abi.ChainEpoch]UpgradeFunc
+	stateMigrations map[abi.ChainEpoch]*migration
 	// A set of potentially expensive/time consuming upgrades. Explicit
 	// calls for, e.g., gas estimation fail against this epoch with
 	// ErrExpensiveFork.
@@ -96,7 +105,7 @@ func NewStateManagerWithUpgradeSchedule(cs *store.ChainStore, us UpgradeSchedule
 		return nil, err
 	}
 
-	stateMigrations := make(map[abi.ChainEpoch]UpgradeFunc, len(us))
+	stateMigrations := make(map[abi.ChainEpoch]*migration, len(us))
 	expensiveUpgrades := make(map[abi.ChainEpoch]struct{}, len(us))
 	var networkVersions []versionSpec
 	lastVersion := network.Version0
@@ -104,8 +113,13 @@ func NewStateManagerWithUpgradeSchedule(cs *store.ChainStore, us UpgradeSchedule
 		// If we have any upgrades, process them and create a version
 		// schedule.
 		for _, upgrade := range us {
-			if upgrade.Migration != nil {
-				stateMigrations[upgrade.Height] = upgrade.Migration
+			if upgrade.Migration != nil || upgrade.PreMigrations != nil {
+				migration := &migration{
+					upgrade:       upgrade.Migration,
+					preMigrations: upgrade.PreMigrations,
+					cache:         nv9.NewMemMigrationCache(),
+				}
+				stateMigrations[upgrade.Height] = migration
 			}
 			if upgrade.Expensive {
 				expensiveUpgrades[upgrade.Height] = struct{}{}
@@ -382,7 +396,7 @@ func (sm *StateManager) ApplyBlocks(ctx context.Context, parentEpoch abi.ChainEp
 	}
 
 	// XXX: Is the height correct? Or should it be epoch-1?
-	rectarr, err := adt.NewArray(sm.cs.Store(ctx), actors.VersionForNetwork(sm.GetNtwkVersion(ctx, epoch)), 3)
+	rectarr := blockadt.MakeEmptyArray(sm.cs.Store(ctx))
 	if err != nil {
 		return cid.Undef, cid.Undef, xerrors.Errorf("failed to create receipts amt: %w", err)
 	}

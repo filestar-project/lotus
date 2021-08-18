@@ -29,6 +29,8 @@ const UpgradeRefuelHeight = -3
 
 var UpgradeActorsV2Height = abi.ChainEpoch(1)
 
+var UpgradeActorsV3Height = abi.ChainEpoch(2)
+
 const UpgradeTapeHeight = -4
 
 // This signals our tentative epoch for mainnet launch. Can make it later, but not earlier.
