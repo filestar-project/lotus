@@ -29,7 +29,7 @@ const UpgradeRefuelHeight = -3
 
 var UpgradeActorsV2Height = abi.ChainEpoch(1)
 
-var UpgradeActorsV3Height = abi.ChainEpoch(2)
+
 
 const UpgradeTapeHeight = -4
 
@@ -45,6 +45,8 @@ const Upgrade8GiBSectorHeight = 184560
 const UpgradeStakeHeight = 584460
 
 const Upgrade8GiBPoStGasHeight = 814860
+
+var UpgradeActorsV3Height = abi.ChainEpoch(math.MaxInt64 - 2)
 
 const UpgradeTokenHeight = math.MaxInt64
 

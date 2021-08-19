@@ -8,7 +8,6 @@ import (
 	"github.com/filecoin-project/lotus/chain/gen/genesis"
 	cron2 "github.com/filecoin-project/specs-actors/v2/actors/builtin/cron"
 	"github.com/filecoin-project/specs-actors/v3/actors/migration/nv9"
-	"math"
 	"runtime"
 	"time"
 
@@ -197,42 +196,6 @@ func DefaultUpgradeSchedule() UpgradeSchedule {
 		Network:   network.Version9,
 		Migration: UpgradeTokenV3,
 	}}
-
-	if build.UpgradeActorsV3Height == math.MaxInt64 { // disable actors upgrade
-		updates = []Upgrade{{
-			Height:    build.UpgradeBreezeHeight,
-			Network:   network.Version1,
-			Migration: UpgradeFaucetBurnRecovery,
-		}, {
-			Height:    build.UpgradeSmokeHeight,
-			Network:   network.Version2,
-			Migration: nil,
-		}, {
-			Height:    build.UpgradeIgnitionHeight,
-			Network:   network.Version3,
-			Migration: UpgradeIgnition,
-		}, {
-			Height:    build.UpgradeRefuelHeight,
-			Network:   network.Version3,
-			Migration: UpgradeRefuel,
-		}, {
-			Height:    build.UpgradeLiftoffHeight,
-			Network:   network.Version3,
-			Migration: UpgradeLiftoff,
-		}, {
-			Height:    build.UpgradeKumquatHeight,
-			Network:   network.Version6,
-			Migration: nil,
-		}, {
-			Height:    build.Upgrade8GiBSectorHeight,
-			Network:   network.Version7,
-			Migration: nil,
-		}, {
-			Height:    build.UpgradeStakeHeight,
-			Network:   network.Version8,
-			Migration: UpgradeStake,
-		}}
-	}
 
 	for _, u := range updates {
 		if u.Height < 0 {

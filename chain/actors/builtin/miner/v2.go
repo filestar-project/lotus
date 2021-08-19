@@ -61,6 +61,21 @@ func (s *state2) VestedFunds(epoch abi.ChainEpoch) (abi.TokenAmount, error) {
 	return s.CheckVestedFunds(s.store, epoch)
 }
 
+func (s *state2) LoadVestingFunds() (*VestingFunds, error) {
+	vfs, err := s.State.LoadVestingFunds(s.store)
+	if err != nil {
+		return nil, err
+	}
+	result := &VestingFunds{}
+	for _, value := range vfs.Funds {
+		result.Funds = append(result.Funds, VestingFund{
+			value.Epoch,
+			value.Amount,
+		})
+	}
+	return result, nil
+}
+
 func (s *state2) LockedFunds() (LockedFunds, error) {
 	return LockedFunds{
 		VestingFunds:             s.State.LockedFunds,

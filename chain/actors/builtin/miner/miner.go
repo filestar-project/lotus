@@ -71,6 +71,7 @@ type State interface {
 	AvailableBalance(abi.TokenAmount) (abi.TokenAmount, error)
 	// Funds that will vest by the given epoch.
 	VestedFunds(abi.ChainEpoch) (abi.TokenAmount, error)
+	LoadVestingFunds() (*VestingFunds, error)
 	// Funds locked for various reasons.
 	LockedFunds() (LockedFunds, error)
 	FeeDebt() (abi.TokenAmount, error)
@@ -259,6 +260,15 @@ type SectorExtensions struct {
 type PreCommitChanges struct {
 	Added   []SectorPreCommitOnChainInfo
 	Removed []SectorPreCommitOnChainInfo
+}
+
+type VestingFunds struct {
+	Funds []VestingFund
+}
+
+type VestingFund struct {
+	Epoch  abi.ChainEpoch
+	Amount abi.TokenAmount
 }
 
 type LockedFunds struct {
