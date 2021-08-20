@@ -426,6 +426,15 @@ var msigProposeCmd = &cli.Command{
 			return fmt.Errorf("actor %s is not a multisig actor", msig)
 		}
 
+		balance, err := api.WalletBalance(ctx, msig)
+		if err != nil {
+			return err
+		}
+
+		if balance.LessThan(types.BigInt(value)) {
+			return fmt.Errorf("balance( %v ) in account is not enough to support the transfer", types.FIL(balance))
+		}
+
 		msgCid, err := api.MsigPropose(ctx, msig, dest, types.BigInt(value), from, method, params)
 		if err != nil {
 			return err
