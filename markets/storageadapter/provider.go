@@ -4,6 +4,7 @@ package storageadapter
 
 import (
 	"context"
+	"github.com/filecoin-project/lotus/chain/actors/builtin/miner"
 	"github.com/filecoin-project/lotus/node/modules/helpers"
 	"go.uber.org/fx"
 	"io"
@@ -170,6 +171,25 @@ func (n *ProviderNodeAdapter) GetMinerWorkerAddress(ctx context.Context, miner a
 		return address.Address{}, err
 	}
 	return mi.Worker, nil
+}
+
+func (n *ProviderNodeAdapter) GetProofType(ctx context.Context, maddr address.Address, tok shared.TipSetToken) (abi.RegisteredSealProof, error) {
+	tsk, err := types.TipSetKeyFromBytes(tok)
+	if err != nil {
+		return 0, err
+	}
+
+	mi, err := n.StateMinerInfo(ctx, maddr, tsk)
+	if err != nil {
+		return 0, err
+	}
+
+	nver, err := n.StateNetworkVersion(ctx, tsk)
+	if err != nil {
+		return 0, err
+	}
+
+	return miner.PreferredSealProofTypeFromWindowPoStType(nver, mi.WindowPoStProofType)
 }
 
 func (n *ProviderNodeAdapter) SignBytes(ctx context.Context, signer address.Address, b []byte) (*crypto.Signature, error) {

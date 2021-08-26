@@ -125,7 +125,7 @@ func (s *seal) unseal(t *testing.T, sb *Sealer, sp *basicfs.Provider, si storage
 		t.Fatal("read wrong bytes")
 	}
 
-	p, sd, err := sp.AcquireSector(context.TODO(), si, storiface.FTUnsealed, storiface.FTNone, storiface.PathStorage)
+	p, sd, err := sp.AcquireSector(context.TODO(), si, storiface.FTUnsealed, storiface.FTNone, storiface.PathStorage, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -206,7 +206,7 @@ func post(t *testing.T, sealer *Sealer, skipped []abi.SectorID, seals ...seal) {
 }
 
 func corrupt(t *testing.T, sealer *Sealer, id storage.SectorRef) {
-	paths, done, err := sealer.sectors.AcquireSector(context.Background(), id, storiface.FTSealed, 0, storiface.PathStorage)
+	paths, done, err := sealer.sectors.AcquireSector(context.Background(), id, storiface.FTSealed, 0, storiface.PathStorage, false)
 	require.NoError(t, err)
 	defer done()
 

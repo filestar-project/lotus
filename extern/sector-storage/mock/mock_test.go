@@ -11,7 +11,7 @@ import (
 func TestOpFinish(t *testing.T) {
 	sb := NewMockSectorMgr(nil)
 
-	sid, pieces, err := sb.StageFakeData(123, abi.RegisteredSealProof_StackedDrg2KiBV1_1)
+	sid, pieces, err := sb.StageFakeData(123, abi.RegisteredSealProof_StackedDrg2KiBV1)
 	if err != nil {
 		t.Fatal(err)
 	}
