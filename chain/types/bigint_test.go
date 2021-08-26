@@ -43,7 +43,7 @@ func TestBigIntSerializationRoundTrip(t *testing.T) {
 
 func TestFilRoundTrip(t *testing.T) {
 	testValues := []string{
-		"0 FIL", "1 FIL", "1.001 FIL", "100.10001 FIL", "101100 FIL", "5000.01 FIL", "5000 FIL",
+		"0 STAR", "1 STAR", "1.001 STAR", "100.10001 STAR", "101100 STAR", "5000.01 STAR", "5000 STAR",
 	}
 
 	for _, v := range testValues {
