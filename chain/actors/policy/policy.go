@@ -33,13 +33,12 @@ const (
 // This should only be used for testing.
 func SetSupportedProofTypes(types ...abi.RegisteredSealProof) {
 	newTypes := make(map[abi.RegisteredSealProof]struct{}, len(types))
-	for _, t := range types {
-		newTypes[t] = struct{}{}
-	}
 	// Set for all miner versions.
 	miner0.SupportedProofTypes = newTypes
 	miner2.SupportedProofTypes = newTypes
-	miner3.SupportedProofTypes = newTypes
+	miner3.PreCommitSealProofTypesV0 = make(map[abi.RegisteredSealProof]struct{}, len(types))
+	miner3.PreCommitSealProofTypesV7 = make(map[abi.RegisteredSealProof]struct{}, len(types))
+	AddSupportedProofTypes(types...)
 }
 
 // AddSupportedProofTypes sets supported proof types, across all actor versions.
@@ -49,8 +48,10 @@ func AddSupportedProofTypes(types ...abi.RegisteredSealProof) {
 		// Set for all miner versions.
 		miner0.SupportedProofTypes[t] = struct{}{}
 		miner2.SupportedProofTypes[t] = struct{}{}
-		miner3.SupportedProofTypes[t] = struct{}{}
+		miner3.PreCommitSealProofTypesV0[t] = struct{}{}
+		miner3.PreCommitSealProofTypesV7[t] = struct{}{}
 	}
+	// miner3.PreCommitSealProofTypesV7[abi.RegisteredSealProof_StackedDrg8GiBV1] = struct{}{}
 }
 
 // SetPreCommitChallengeDelay sets the pre-commit challenge delay across all

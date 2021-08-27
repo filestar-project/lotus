@@ -40,7 +40,7 @@ require (
 	github.com/filecoin-project/go-statemachine v0.0.0-20200925024713-05bd7c71fbfe
 	github.com/filecoin-project/go-statestore v0.1.1-0.20210311122610-6c7a5aedbdea
 	github.com/filecoin-project/go-storedcounter v0.0.0-20200421200003-1c99c62e8a5b
-	github.com/filecoin-project/specs-actors v0.9.12
+	github.com/filecoin-project/specs-actors v0.9.13
 	github.com/filecoin-project/specs-actors/v2 v2.2.0
 	github.com/filecoin-project/specs-actors/v3 v3.1.0
 	github.com/filecoin-project/specs-storage v0.1.1-0.20201105051918-5188d9774506

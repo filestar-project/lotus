@@ -71,6 +71,9 @@ type migration struct {
 type StateManager struct {
 	cs *store.ChainStore
 
+	cancel   context.CancelFunc
+	shutdown chan struct{}
+
 	// Determines the network version at any given epoch.
 	networkVersions []versionSpec
 	latestVersion   network.Version
@@ -153,6 +156,33 @@ func cidsToKey(cids []cid.Cid) string {
 		out += c.KeyString()
 	}
 	return out
+}
+
+// Start starts the state manager's optional background processes. At the moment, this schedules
+// pre-migration functions to run ahead of network upgrades.
+//
+// This method is not safe to invoke from multiple threads or concurrently with Stop.
+func (sm *StateManager) Start(context.Context) error {
+	var ctx context.Context
+	ctx, sm.cancel = context.WithCancel(context.Background())
+	sm.shutdown = make(chan struct{})
+	go sm.preMigrationWorker(ctx)
+	return nil
+}
+
+// Stop starts the state manager's background processes.
+//
+// This method is not safe to invoke concurrently with Start.
+func (sm *StateManager) Stop(ctx context.Context) error {
+	if sm.cancel != nil {
+		sm.cancel()
+		select {
+		case <-sm.shutdown:
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
+	return nil
 }
 
 func (sm *StateManager) TipSetState(ctx context.Context, ts *types.TipSet) (st cid.Cid, rec cid.Cid, err error) {

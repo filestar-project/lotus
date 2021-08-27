@@ -9,6 +9,8 @@ import (
 	cron2 "github.com/filecoin-project/specs-actors/v2/actors/builtin/cron"
 	"github.com/filecoin-project/specs-actors/v3/actors/migration/nv9"
 	"runtime"
+	"sort"
+	"sync"
 	"time"
 
 	"github.com/filecoin-project/lotus/chain/actors/builtin"
@@ -267,6 +269,109 @@ func (sm *StateManager) handleStateForks(ctx context.Context, root cid.Cid, heig
 func (sm *StateManager) hasExpensiveFork(ctx context.Context, height abi.ChainEpoch) bool {
 	_, ok := sm.expensiveUpgrades[height]
 	return ok
+}
+
+func runPreMigration(ctx context.Context, sm *StateManager, fn PreMigrationFunc, cache *nv9.MemMigrationCache, ts *types.TipSet) {
+	height := ts.Height()
+	parent := ts.ParentState()
+
+	startTime := time.Now()
+
+	log.Warn("STARTING pre-migration")
+	// Clone the cache so we don't actually _update_ it
+	// till we're done. Otherwise, if we fail, the next
+	// migration to use the cache may assume that
+	// certain blocks exist, even if they don't.
+	tmpCache := cache.Clone()
+	err := fn(ctx, sm, tmpCache, parent, height, ts)
+	if err != nil {
+		log.Errorw("FAILED pre-migration", "error", err)
+		return
+	}
+	// Finally, if everything worked, update the cache.
+	cache.Update(tmpCache)
+	log.Warnw("COMPLETED pre-migration", "duration", time.Since(startTime))
+}
+
+func (sm *StateManager) preMigrationWorker(ctx context.Context) {
+	defer close(sm.shutdown)
+
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	type op struct {
+		after    abi.ChainEpoch
+		notAfter abi.ChainEpoch
+		run      func(ts *types.TipSet)
+	}
+
+	var wg sync.WaitGroup
+	defer wg.Wait()
+
+	// Turn each pre-migration into an operation in a schedule.
+	var schedule []op
+	for upgradeEpoch, migration := range sm.stateMigrations {
+		cache := migration.cache
+		for _, prem := range migration.preMigrations {
+			preCtx, preCancel := context.WithCancel(ctx)
+			migrationFunc := prem.PreMigration
+
+			afterEpoch := upgradeEpoch - prem.StartWithin
+			notAfterEpoch := upgradeEpoch - prem.DontStartWithin
+			stopEpoch := upgradeEpoch - prem.StopWithin
+			// We can't start after we stop.
+			if notAfterEpoch > stopEpoch {
+				notAfterEpoch = stopEpoch - 1
+			}
+
+			// Add an op to start a pre-migration.
+			schedule = append(schedule, op{
+				after:    afterEpoch,
+				notAfter: notAfterEpoch,
+
+				// TODO: are these values correct?
+				run: func(ts *types.TipSet) {
+					wg.Add(1)
+					go func() {
+						defer wg.Done()
+						runPreMigration(preCtx, sm, migrationFunc, cache, ts)
+					}()
+				},
+			})
+
+			// Add an op to cancel the pre-migration if it's still running.
+			schedule = append(schedule, op{
+				after:    stopEpoch,
+				notAfter: -1,
+				run:      func(ts *types.TipSet) { preCancel() },
+			})
+		}
+	}
+
+	// Then sort by epoch.
+	sort.Slice(schedule, func(i, j int) bool {
+		return schedule[i].after < schedule[j].after
+	})
+
+	// Finally, when the head changes, see if there's anything we need to do.
+	//
+	// We're intentionally ignoring reorgs as they don't matter for our purposes.
+	for change := range sm.cs.SubHeadChanges(ctx) {
+		for _, head := range change {
+			for len(schedule) > 0 {
+				op := &schedule[0]
+				if head.Val.Height() < op.after {
+					break
+				}
+
+				// If we haven't passed the pre-migration height...
+				if op.notAfter < 0 || head.Val.Height() < op.notAfter {
+					op.run(head.Val)
+				}
+				schedule = schedule[1:]
+			}
+		}
+	}
 }
 
 func doTransfer(tree types.StateTree, from, to address.Address, amt abi.TokenAmount, cb func(trace types.ExecutionTrace)) error {
