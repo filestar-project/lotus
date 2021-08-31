@@ -206,7 +206,26 @@ func GetSectorsForWinningPoSt(ctx context.Context, pv ffiwrapper.Verifier, sm *S
 		return nil, xerrors.Errorf("getting miner ID: %w", err)
 	}
 
-	ids, err := pv.GenerateWinningPoStSectorChallenge(ctx, info.WindowPoStProofType, abi.ActorID(mid), rand, numProvSect)
+	// TODO: move this to somewhere in specs-actors or the state types.
+	var proofType abi.RegisteredPoStProof
+	switch info.WindowPoStProofType {
+	case abi.RegisteredPoStProof_StackedDrgWindow2KiBV1:
+		proofType = abi.RegisteredPoStProof_StackedDrgWinning2KiBV1
+	case abi.RegisteredPoStProof_StackedDrgWindow8MiBV1:
+		proofType = abi.RegisteredPoStProof_StackedDrgWinning8MiBV1
+	case abi.RegisteredPoStProof_StackedDrgWindow512MiBV1:
+		proofType = abi.RegisteredPoStProof_StackedDrgWinning512MiBV1
+	case abi.RegisteredPoStProof_StackedDrgWindow8GiBV1:
+		proofType = abi.RegisteredPoStProof_StackedDrgWinning8GiBV1
+	case abi.RegisteredPoStProof_StackedDrgWindow32GiBV1:
+		proofType = abi.RegisteredPoStProof_StackedDrgWinning32GiBV1
+	case abi.RegisteredPoStProof_StackedDrgWindow64GiBV1:
+		proofType = abi.RegisteredPoStProof_StackedDrgWinning64GiBV1
+	default:
+		return nil, xerrors.Errorf("unknown proof type %d", info.WindowPoStProofType)
+	}
+
+	ids, err := pv.GenerateWinningPoStSectorChallenge(ctx, proofType, abi.ActorID(mid), rand, numProvSect)
 	if err != nil {
 		return nil, xerrors.Errorf("generating winning post challenges: %w", err)
 	}
