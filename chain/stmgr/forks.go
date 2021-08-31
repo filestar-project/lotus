@@ -4,9 +4,10 @@ import (
 	"bytes"
 	"context"
 	"encoding/binary"
+	"github.com/filecoin-project/go-state-types/rt"
 	"github.com/filecoin-project/lotus/chain/gen/genesis"
 	cron2 "github.com/filecoin-project/specs-actors/v2/actors/builtin/cron"
-	"math"
+	"github.com/filecoin-project/specs-actors/v3/actors/migration/nv9"
 
 	"github.com/filecoin-project/lotus/chain/actors/builtin"
 
@@ -58,6 +59,21 @@ type Upgrade struct {
 
 type UpgradeSchedule []Upgrade
 
+type migrationLogger struct{}
+
+func (ml migrationLogger) Log(level rt.LogLevel, msg string, args ...interface{}) {
+	switch level {
+	case rt.DEBUG:
+		log.Debugf(msg, args...)
+	case rt.INFO:
+		log.Infof(msg, args...)
+	case rt.WARN:
+		log.Warnf(msg, args...)
+	case rt.ERROR:
+		log.Errorf(msg, args...)
+	}
+}
+
 func DefaultUpgradeSchedule() UpgradeSchedule {
 	var us UpgradeSchedule
 
@@ -105,31 +121,11 @@ func DefaultUpgradeSchedule() UpgradeSchedule {
 		Height:    build.Upgrade8GiBPoStGasHeight,
 		Network:   network.Version8,
 		Migration: nil,
+	}, {
+		Height:    build.UpgradeActorsV3Height,
+		Network:   network.Version9,
+		Migration: UpgradeActorsV3,
 	}}
-
-	if build.UpgradeActorsV2Height == math.MaxInt64 { // disable actors upgrade
-		updates = []Upgrade{{
-			Height:    build.UpgradeBreezeHeight,
-			Network:   network.Version1,
-			Migration: UpgradeFaucetBurnRecovery,
-		}, {
-			Height:    build.UpgradeSmokeHeight,
-			Network:   network.Version2,
-			Migration: nil,
-		}, {
-			Height:    build.UpgradeIgnitionHeight,
-			Network:   network.Version3,
-			Migration: UpgradeIgnition,
-		}, {
-			Height:    build.UpgradeRefuelHeight,
-			Network:   network.Version3,
-			Migration: UpgradeRefuel,
-		}, {
-			Height:    build.UpgradeLiftoffHeight,
-			Network:   network.Version3,
-			Migration: UpgradeLiftoff,
-		}}
-	}
 
 	for _, u := range updates {
 		if u.Height < 0 {
@@ -748,6 +744,73 @@ func UpgradeStake(ctx context.Context, sm *StateManager, cb ExecCallback, root c
 		}
 	}
 	return tree.Flush(ctx)
+}
+
+func UpgradeActorsV3(ctx context.Context, sm *StateManager, cb ExecCallback, root cid.Cid, epoch abi.ChainEpoch, ts *types.TipSet) (cid.Cid, error) {
+	buf := bufbstore.NewTieredBstore(sm.cs.Blockstore(), bstore.NewTemporarySync())
+	store := store.ActorStore(ctx, buf)
+
+	// Load the state root.
+
+	var stateRoot types.StateRoot
+	if err := store.Get(ctx, root, &stateRoot); err != nil {
+		return cid.Undef, xerrors.Errorf("failed to decode state root: %w", err)
+	}
+
+	if stateRoot.Version != types.StateTreeVersion1 {
+		return cid.Undef, xerrors.Errorf(
+			"expected state root version 1 for actors v3 upgrade, got %d",
+			stateRoot.Version,
+		)
+	}
+
+	// Perform the migration
+
+	// TODO: store this somewhere and pre-migrate
+	cache := nv9.NewMemMigrationCache()
+	// TODO: tune this.
+	config := nv9.Config{MaxWorkers: 1}
+	newHamtRoot, err := nv9.MigrateStateTree(ctx, store, stateRoot.Actors, epoch, config, migrationLogger{}, cache)
+	if err != nil {
+		return cid.Undef, xerrors.Errorf("upgrading to actors v2: %w", err)
+	}
+
+	// Persist the result.
+
+	newRoot, err := store.Put(ctx, &types.StateRoot{
+		Version: types.StateTreeVersion2,
+		Actors:  newHamtRoot,
+		Info:    stateRoot.Info,
+	})
+	if err != nil {
+		return cid.Undef, xerrors.Errorf("failed to persist new state root: %w", err)
+	}
+
+	// Check the result.
+
+	// perform some basic sanity checks to make sure everything still works.
+	if newSm, err := state.LoadStateTree(store, newRoot); err != nil {
+		return cid.Undef, xerrors.Errorf("state tree sanity load failed: %w", err)
+	} else if newRoot2, err := newSm.Flush(ctx); err != nil {
+		return cid.Undef, xerrors.Errorf("state tree sanity flush failed: %w", err)
+	} else if newRoot2 != newRoot {
+		return cid.Undef, xerrors.Errorf("state-root mismatch: %s != %s", newRoot, newRoot2)
+	} else if _, err := newSm.GetActor(init_.Address); err != nil {
+		return cid.Undef, xerrors.Errorf("failed to load init actor after upgrade: %w", err)
+	}
+
+	// Persist the new tree.
+
+	{
+		from := buf
+		to := buf.Read()
+
+		if err := vm.Copy(ctx, from, to, newRoot); err != nil {
+			return cid.Undef, xerrors.Errorf("copying migrated tree: %w", err)
+		}
+	}
+
+	return newRoot, nil
 }
 
 func setNetworkName(ctx context.Context, store adt.Store, tree *state.StateTree, name string) error {

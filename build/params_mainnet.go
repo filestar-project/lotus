@@ -44,6 +44,9 @@ const UpgradeStakeHeight = 584460
 
 const Upgrade8GiBPoStGasHeight = 814860
 
+// TODO
+const UpgradeActorsV3Height = 99999999
+
 func init() {
 	policy.SetConsensusMinerMinPower(abi.NewStoragePower(32 << 30))
 	policy.SetSupportedProofTypes(
