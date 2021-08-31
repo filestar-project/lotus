@@ -23,9 +23,9 @@ require (
 	github.com/elastic/go-sysinfo v1.3.0
 	github.com/fatih/color v1.9.0
 	github.com/filecoin-project/filecoin-ffi v0.30.4-0.20200910194244-f640612a1a1f
-	github.com/filecoin-project/go-address v0.0.5-0.20201103152444-f2023ef3f5bb
+	github.com/filecoin-project/go-address v0.0.5
 	github.com/filecoin-project/go-amt-ipld/v2 v2.1.1-0.20201006184820-924ee87a1349 // indirect
-	github.com/filecoin-project/go-bitfield v0.2.3-0.20201110211213-fe2c1862e816
+	github.com/filecoin-project/go-bitfield v0.2.3
 	github.com/filecoin-project/go-cbor-util v0.0.0-20191219014500-08c40a1e63a2
 	github.com/filecoin-project/go-crypto v0.0.0-20191218222705-effae4ea9f03
 	github.com/filecoin-project/go-data-transfer v1.2.0
@@ -41,7 +41,7 @@ require (
 	github.com/filecoin-project/go-storedcounter v0.0.0-20200421200003-1c99c62e8a5b
 	github.com/filecoin-project/specs-actors v0.9.12
 	github.com/filecoin-project/specs-actors/v2 v2.2.0
-	github.com/filecoin-project/specs-actors/v3 v3.0.0
+	github.com/filecoin-project/specs-actors/v3 v3.1.0
 	github.com/filecoin-project/specs-storage v0.1.1-0.20201105051918-5188d9774506
 	github.com/filecoin-project/test-vectors/schema v0.0.5
 	github.com/gbrlsnchs/jwt/v3 v3.0.0-beta.1
@@ -162,6 +162,6 @@ replace github.com/filecoin-project/specs-actors/v2 => github.com/filestar-proje
 
 replace github.com/filecoin-project/specs-actors/v3 => github.com/filestar-project/specs-actors/v3 v3.0.0
 
-replace github.com/filecoin-project/go-state-types => github.com/filestar-project/go-state-types v0.1.0
+replace github.com/filecoin-project/go-state-types => github.com/filestar-project/go-state-types v0.1.4
 
 replace github.com/filecoin-project/go-paramfetch => github.com/filestar-project/go-paramfetch v0.0.2

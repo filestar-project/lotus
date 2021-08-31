@@ -8,7 +8,3 @@
 [submodule "extern/test-vectors"]
 	path = extern/test-vectors
 	url = https://github.com/filecoin-project/test-vectors.git
-[submodule "extern/specs-actors"]
-	path = extern/specs-actors
-	url = https://github.com/filestar-project/specs-actors.git
-	branch = master
