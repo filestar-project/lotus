@@ -43,6 +43,7 @@ import (
 )
 
 const LookbackNoLimit = abi.ChainEpoch(-1)
+const ReceiptAmtBitwidth = 3
 
 var log = logging.Logger("statemgr")
 
@@ -382,7 +383,7 @@ func (sm *StateManager) ApplyBlocks(ctx context.Context, parentEpoch abi.ChainEp
 	}
 
 	// XXX: Is the height correct? Or should it be epoch-1?
-	rectarr, err := adt.NewArray(sm.cs.Store(ctx), actors.VersionForNetwork(sm.GetNtwkVersion(ctx, epoch)))
+	rectarr, err := adt.NewArray(sm.cs.Store(ctx), actors.VersionForNetwork(sm.GetNtwkVersion(ctx, epoch)), ReceiptAmtBitwidth)
 	if err != nil {
 		return cid.Undef, cid.Undef, xerrors.Errorf("failed to create receipts amt: %w", err)
 	}
