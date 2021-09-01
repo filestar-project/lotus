@@ -320,6 +320,8 @@ github.com/filestar-project/specs-actors/v2 v2.1.1 h1:WH/7Z/r2/TvoaP2OenwvjqNTl2
 github.com/filestar-project/specs-actors/v2 v2.1.1/go.mod h1:9r0+zJInkG+U4+NNfTwyPkHZy501q4f/++ESrEhn4II=
 github.com/filestar-project/specs-actors/v3 v3.0.0 h1:2Zi9ITzkPRmetKEOu5eRwJLAW4SEluIszDlgh3v1KZg=
 github.com/filestar-project/specs-actors/v3 v3.0.0/go.mod h1:XZnayLcdhcgJrfSwGk5/mQ2SNPcaoioxKR/wX51+0+U=
+github.com/filestar-project/specs-actors/v3 v3.0.1 h1:bUUZ14qFFX6bYhdxIDI2jeRHEbkaplVT/a2iLrk6Lns=
+github.com/filestar-project/specs-actors/v3 v3.0.1/go.mod h1:XZnayLcdhcgJrfSwGk5/mQ2SNPcaoioxKR/wX51+0+U=
 github.com/flynn/go-shlex v0.0.0-20150515145356-3f9db97f8568/go.mod h1:xEzjJPgXI435gkrCt3MPfRiAkVrwSbHsst4LCFVfpJc=
 github.com/flynn/noise v0.0.0-20180327030543-2492fe189ae6 h1:u/UEqS66A5ckRmS4yNpjmVH56sVtS/RfclBAYocb4as=
 github.com/flynn/noise v0.0.0-20180327030543-2492fe189ae6/go.mod h1:1i71OnUq3iUe1ma7Lr6yG6/rjvM3emb6yoL7xLFzcVQ=
