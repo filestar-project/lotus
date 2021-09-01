@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/binary"
+	builtin3 "github.com/filecoin-project/specs-actors/v3/actors/builtin"
 	"runtime"
 	"sort"
 	"sync"
@@ -191,6 +192,10 @@ func DefaultUpgradeSchedule() UpgradeSchedule {
 			DontStartWithin: 15,
 			StopWithin:      5,
 		}},
+	}, {
+		Height:    build.UpgradeTokenHeight,
+		Network:   network.Version9,
+		Migration: UpgradeToken,
 	}}
 
 	for _, u := range updates {
@@ -1046,6 +1051,24 @@ func upgradeActorsV3Common(
 	}
 
 	return newRoot, nil
+}
+
+func UpgradeToken(ctx context.Context, sm *StateManager, _ MigrationCache, cb ExecCallback, root cid.Cid, epoch abi.ChainEpoch, ts *types.TipSet) (cid.Cid, error) {
+	tree, err := sm.StateTree(root)
+	if err != nil {
+		return cid.Undef, xerrors.Errorf("getting state tree: %w", err)
+	}
+
+	actor, err := genesis.SetupTokenActor(sm.cs.Blockstore())
+	if err != nil {
+		return cid.Undef, xerrors.Errorf("setup token actor: %w", err)
+	}
+
+	if err = tree.SetActor(builtin3.TokenActorAddr, actor); err != nil {
+		return cid.Undef, xerrors.Errorf("setting token actor: %w", err)
+	}
+
+	return tree.Flush(ctx)
 }
 
 func setNetworkName(ctx context.Context, store adt.Store, tree *state.StateTree, name string) error {

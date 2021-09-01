@@ -32,6 +32,8 @@ const Upgrade8GiBPoStGasHeight = 15
 // TODO
 const UpgradeActorsV3Height = 25
 
+const UpgradeTokenHeight = 35
+
 var DrandSchedule = map[abi.ChainEpoch]DrandEnum{
 	0: DrandMainnet,
 }

@@ -3,6 +3,7 @@ package apistruct
 import (
 	"context"
 	"github.com/filecoin-project/lotus/chain/actors/builtin/stake"
+	"github.com/filecoin-project/lotus/chain/actors/builtin/token"
 	"io"
 	"time"
 
@@ -236,6 +237,17 @@ type FullNodeStruct struct {
 		StateStakerVestingRewardList   func(context.Context, address.Address, types.TipSetKey) ([]stake.VestingFund, error)     `perm:"read"`
 		StateStakerVestingReward       func(context.Context, address.Address, types.TipSetKey) (abi.TokenAmount, error)         `perm:"read"`
 		StateStakerAvailableReward     func(context.Context, address.Address, types.TipSetKey) (abi.TokenAmount, error)         `perm:"read"`
+
+		StateTokenInfo                      func(context.Context, types.TipSetKey) (*token.TokenStateInfo, error)                            `perm:"read"`
+		StateTokenCreators                  func(context.Context, types.TipSetKey) ([]address.Address, error)                                `perm:"read"`
+		StateTokenCreatorByTokenID          func(context.Context, big.Int, types.TipSetKey) (address.Address, error)                         `perm:"read"`
+		StateTokenIDsByCreator              func(context.Context, address.Address, types.TipSetKey) ([]big.Int, error)                       `perm:"read"`
+		StateTokenURIByTokenID              func(context.Context, big.Int, types.TipSetKey) (string, error)                                  `perm:"read"`
+		StateTokenBalanceByTokenID          func(context.Context, big.Int, types.TipSetKey) ([]*token.TokenBalanceInfoByTokenID, error)      `perm:"read"`
+		StateTokenBalanceByAddr             func(context.Context, address.Address, types.TipSetKey) ([]*token.TokenBalanceInfoByAddr, error) `perm:"read"`
+		StateTokenBalanceByTokenIDAndAddr   func(context.Context, big.Int, address.Address, types.TipSetKey) (abi.TokenAmount, error)        `perm:"read"`
+		StateTokenBalanceByTokenIDsAndAddrs func(context.Context, []big.Int, []address.Address, types.TipSetKey) ([]abi.TokenAmount, error)  `perm:"read"`
+		StateTokenIsAllApproved             func(context.Context, address.Address, address.Address, types.TipSetKey) (bool, error)           `perm:"read"`
 
 		MsigGetAvailableBalance func(context.Context, address.Address, types.TipSetKey) (types.BigInt, error)                                                                    `perm:"read"`
 		MsigGetVestingSchedule  func(context.Context, address.Address, types.TipSetKey) (api.MsigVesting, error)                                                                 `perm:"read"`
@@ -1120,6 +1132,45 @@ func (c *FullNodeStruct) StateStakerVestingReward(ctx context.Context, addr addr
 
 func (c *FullNodeStruct) StateStakerAvailableReward(ctx context.Context, addr address.Address, tsk types.TipSetKey) (abi.TokenAmount, error) {
 	return c.Internal.StateStakerAvailableReward(ctx, addr, tsk)
+}
+
+func (c *FullNodeStruct) StateTokenInfo(ctx context.Context, tsk types.TipSetKey) (*token.TokenStateInfo, error) {
+	return c.Internal.StateTokenInfo(ctx, tsk)
+}
+
+func (c *FullNodeStruct) StateTokenCreators(ctx context.Context, tsk types.TipSetKey) ([]address.Address, error) {
+	return c.Internal.StateTokenCreators(ctx, tsk)
+}
+
+func (c *FullNodeStruct) StateTokenCreatorByTokenID(ctx context.Context, tokenID big.Int, tsk types.TipSetKey) (address.Address, error) {
+	return c.Internal.StateTokenCreatorByTokenID(ctx, tokenID, tsk)
+}
+func (c *FullNodeStruct) StateTokenIDsByCreator(ctx context.Context, creator address.Address, tsk types.TipSetKey) ([]big.Int, error) {
+	return c.Internal.StateTokenIDsByCreator(ctx, creator, tsk)
+}
+
+func (c *FullNodeStruct) StateTokenURIByTokenID(ctx context.Context, tokenID big.Int, tsk types.TipSetKey) (string, error) {
+	return c.Internal.StateTokenURIByTokenID(ctx, tokenID, tsk)
+}
+
+func (c *FullNodeStruct) StateTokenBalanceByTokenID(ctx context.Context, tokenID big.Int, tsk types.TipSetKey) ([]*token.TokenBalanceInfoByTokenID, error) {
+	return c.Internal.StateTokenBalanceByTokenID(ctx, tokenID, tsk)
+}
+
+func (c *FullNodeStruct) StateTokenBalanceByAddr(ctx context.Context, owner address.Address, tsk types.TipSetKey) ([]*token.TokenBalanceInfoByAddr, error) {
+	return c.Internal.StateTokenBalanceByAddr(ctx, owner, tsk)
+}
+
+func (c *FullNodeStruct) StateTokenBalanceByTokenIDAndAddr(ctx context.Context, tokenID big.Int, owner address.Address, tsk types.TipSetKey) (abi.TokenAmount, error) {
+	return c.Internal.StateTokenBalanceByTokenIDAndAddr(ctx, tokenID, owner, tsk)
+}
+
+func (c *FullNodeStruct) StateTokenBalanceByTokenIDsAndAddrs(ctx context.Context, tokenIDs []big.Int, owners []address.Address, tsk types.TipSetKey) ([]abi.TokenAmount, error) {
+	return c.Internal.StateTokenBalanceByTokenIDsAndAddrs(ctx, tokenIDs, owners, tsk)
+}
+
+func (c *FullNodeStruct) StateTokenIsAllApproved(ctx context.Context, addrFrom address.Address, addrTo address.Address, tsk types.TipSetKey) (bool, error) {
+	return c.Internal.StateTokenIsAllApproved(ctx, addrFrom, addrTo, tsk)
 }
 
 func (c *FullNodeStruct) MsigGetAvailableBalance(ctx context.Context, a address.Address, tsk types.TipSetKey) (types.BigInt, error) {

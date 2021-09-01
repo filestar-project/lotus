@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"github.com/filecoin-project/lotus/chain/actors/builtin/stake"
+	"github.com/filecoin-project/lotus/chain/actors/builtin/token"
 	"strconv"
 
 	cid "github.com/ipfs/go-cid"
@@ -1553,4 +1554,124 @@ func (a *StateAPI) StateStakerAvailableReward(ctx context.Context, addr address.
 		return big.Zero(), err
 	}
 	return st.StakerAvailableReward(addr)
+}
+
+func (a *StateAPI) StateTokenInfo(ctx context.Context, tsk types.TipSetKey) (*token.TokenStateInfo, error) {
+	tact, err := a.StateGetActor(ctx, token.Address, tsk)
+	if err != nil {
+		return nil, err
+	}
+	st, err := token.Load(a.StateManager.ChainStore().Store(ctx), tact)
+	if err != nil {
+		return nil, err
+	}
+	return st.GetInfo()
+}
+
+func (a *StateAPI) StateTokenCreators(ctx context.Context, tsk types.TipSetKey) ([]address.Address, error) {
+	tact, err := a.StateGetActor(ctx, token.Address, tsk)
+	if err != nil {
+		return nil, err
+	}
+	st, err := token.Load(a.StateManager.ChainStore().Store(ctx), tact)
+	if err != nil {
+		return nil, err
+	}
+	return st.TokenCreators()
+}
+
+func (a *StateAPI) StateTokenCreatorByTokenID(ctx context.Context, tokenID big.Int, tsk types.TipSetKey) (address.Address, error) {
+	tact, err := a.StateGetActor(ctx, token.Address, tsk)
+	if err != nil {
+		return address.Address{}, err
+	}
+	st, err := token.Load(a.StateManager.ChainStore().Store(ctx), tact)
+	if err != nil {
+		return address.Address{}, err
+	}
+	return st.TokenCreatorByTokenID(tokenID)
+}
+
+func (a *StateAPI) StateTokenIDsByCreator(ctx context.Context, creator address.Address, tsk types.TipSetKey) ([]big.Int, error) {
+	tact, err := a.StateGetActor(ctx, token.Address, tsk)
+	if err != nil {
+		return nil, err
+	}
+	st, err := token.Load(a.StateManager.ChainStore().Store(ctx), tact)
+	if err != nil {
+		return nil, err
+	}
+	return st.TokenIDsByCreators(creator)
+}
+
+func (a *StateAPI) StateTokenURIByTokenID(ctx context.Context, tokenID big.Int, tsk types.TipSetKey) (string, error) {
+	tact, err := a.StateGetActor(ctx, token.Address, tsk)
+	if err != nil {
+		return "", err
+	}
+	st, err := token.Load(a.StateManager.ChainStore().Store(ctx), tact)
+	if err != nil {
+		return "", err
+	}
+	return st.TokenURIByTokenID(tokenID)
+}
+
+func (a *StateAPI) StateTokenBalanceByTokenID(ctx context.Context, tokenID big.Int, tsk types.TipSetKey) ([]*token.TokenBalanceInfoByTokenID, error) {
+	tact, err := a.StateGetActor(ctx, token.Address, tsk)
+	if err != nil {
+		return nil, err
+	}
+	st, err := token.Load(a.StateManager.ChainStore().Store(ctx), tact)
+	if err != nil {
+		return nil, err
+	}
+	return st.TokenBalanceByTokenID(tokenID)
+}
+
+func (a *StateAPI) StateTokenBalanceByAddr(ctx context.Context, owner address.Address, tsk types.TipSetKey) ([]*token.TokenBalanceInfoByAddr, error) {
+	tact, err := a.StateGetActor(ctx, token.Address, tsk)
+	if err != nil {
+		return nil, err
+	}
+	st, err := token.Load(a.StateManager.ChainStore().Store(ctx), tact)
+	if err != nil {
+		return nil, err
+	}
+	return st.TokenBalanceByAddr(owner)
+}
+
+func (a *StateAPI) StateTokenBalanceByTokenIDAndAddr(ctx context.Context, tokenID big.Int, owner address.Address, tsk types.TipSetKey) (abi.TokenAmount, error) {
+	tact, err := a.StateGetActor(ctx, token.Address, tsk)
+	if err != nil {
+		return big.Zero(), err
+	}
+	st, err := token.Load(a.StateManager.ChainStore().Store(ctx), tact)
+	if err != nil {
+		return big.Zero(), err
+	}
+	return st.TokenBalanceByTokenIDAndAddr(tokenID, owner)
+}
+
+func (a *StateAPI) StateTokenBalanceByTokenIDsAndAddrs(ctx context.Context, tokenIDs []big.Int, owners []address.Address, tsk types.TipSetKey) ([]abi.TokenAmount, error) {
+	tact, err := a.StateGetActor(ctx, token.Address, tsk)
+	if err != nil {
+		return nil, err
+	}
+	st, err := token.Load(a.StateManager.ChainStore().Store(ctx), tact)
+	if err != nil {
+		return nil, err
+	}
+	return st.TokenBalanceByTokenIDsAndAddrs(tokenIDs, owners)
+}
+
+func (a *StateAPI) StateTokenIsAllApproved(ctx context.Context, addrFrom address.Address, addrTo address.Address, tsk types.TipSetKey) (bool, error) {
+	tact, err := a.StateGetActor(ctx, token.Address, tsk)
+	if err != nil {
+		return false, err
+	}
+	st, err := token.Load(a.StateManager.ChainStore().Store(ctx), tact)
+	if err != nil {
+		return false, err
+	}
+	return st.TokenIsAllApproved(addrFrom, addrTo)
 }
