@@ -215,6 +215,34 @@ func (us UpgradeSchedule) Validate() error {
 		if u.Network <= 0 {
 			return xerrors.Errorf("cannot upgrade to version <= 0: %d", u.Network)
 		}
+		for _, m := range u.PreMigrations {
+			if m.StartWithin <= 0 {
+				return xerrors.Errorf("pre-migration must specify a positive start-within epoch")
+			}
+
+			if m.DontStartWithin < 0 || m.StopWithin < 0 {
+				return xerrors.Errorf("pre-migration must specify non-negative epochs")
+			}
+
+			if m.StartWithin <= m.StopWithin {
+				return xerrors.Errorf("pre-migration start-within must come before stop-within")
+			}
+
+			// If we have a dont-start-within.
+			if m.DontStartWithin != 0 {
+				if m.DontStartWithin < m.StopWithin {
+					return xerrors.Errorf("pre-migration dont-start-within must come before stop-within")
+				}
+				if m.StartWithin <= m.DontStartWithin {
+					return xerrors.Errorf("pre-migration start-within must come after dont-start-within")
+				}
+			}
+		}
+		if !sort.SliceIsSorted(u.PreMigrations, func(i, j int) bool {
+			return u.PreMigrations[i].StartWithin > u.PreMigrations[j].StartWithin //nolint:scopelint,gosec
+		}) {
+			return xerrors.Errorf("pre-migrations must be sorted by start epoch")
+		}
 	}
 
 	// Make sure all the upgrades make sense.
