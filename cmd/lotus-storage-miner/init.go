@@ -7,6 +7,8 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
+	"github.com/filecoin-project/go-state-types/network"
+	power3 "github.com/filecoin-project/specs-actors/v3/actors/builtin/power"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -657,19 +659,37 @@ func createStorageMiner(ctx context.Context, api lapi.FullNode, peerid peer.ID, 
 		return address.Undef, xerrors.Errorf("getting network version: %w", err)
 	}
 
-	spt, err := miner.SealProofTypeFromSectorSize(abi.SectorSize(ssize), nv)
-	if err != nil {
-		return address.Undef, xerrors.Errorf("getting seal proof type: %w", err)
-	}
+	var params []byte
+	if nv < network.Version9 {
+		spt, err := miner.SealProofTypeFromSectorSize(abi.SectorSize(ssize), nv)
+		if err != nil {
+			return address.Undef, xerrors.Errorf("getting seal proof type: %w", err)
+		}
 
-	params, err := actors.SerializeParams(&power2.CreateMinerParams{
-		Owner:         owner,
-		Worker:        worker,
-		SealProofType: spt,
-		Peer:          abi.PeerID(peerid),
-	})
-	if err != nil {
-		return address.Undef, err
+		params, err = actors.SerializeParams(&power2.CreateMinerParams{
+			Owner:         owner,
+			Worker:        worker,
+			SealProofType: spt,
+			Peer:          abi.PeerID(peerid),
+		})
+		if err != nil {
+			return address.Undef, err
+		}
+	} else {
+		spt, err := miner.WindowPoStProofTypeFromSectorSize(abi.SectorSize(ssize), nv)
+		if err != nil {
+			return address.Undef, xerrors.Errorf("getting seal proof type: %w", err)
+		}
+
+		params, err = actors.SerializeParams(&power3.CreateMinerParams{
+			Owner:         owner,
+			Worker:        worker,
+			WindowPoStProofType: spt,
+			Peer:          abi.PeerID(peerid),
+		})
+		if err != nil {
+			return address.Undef, err
+		}
 	}
 
 	sender := owner
