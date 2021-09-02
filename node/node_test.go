@@ -38,6 +38,13 @@ func TestAPIDealFlow(t *testing.T) {
 	logging.SetLogLevel("sub", "ERROR")
 	logging.SetLogLevel("storageminer", "ERROR")
 
+	blockTime := 10 * time.Millisecond
+
+	// For these tests where the block time is artificially short, just use
+	// a deal start epoch that is guaranteed to be far enough in the future
+	// so that the deal starts sealing in time
+	dealStartEpoch := abi.ChainEpoch(2 << 12)
+
 	t.Run("TestDealFlow", func(t *testing.T) {
 		test.TestDealFlow(t, builder.MockSbBuilder, 10*time.Millisecond, false, false)
 	})
@@ -49,6 +56,9 @@ func TestAPIDealFlow(t *testing.T) {
 	})
 	t.Run("TestFastRetrievalDealFlow", func(t *testing.T) {
 		test.TestFastRetrievalDealFlow(t, builder.MockSbBuilder, 10*time.Millisecond)
+	})
+	t.Run("TestPublishDealsBatching", func(t *testing.T) {
+		test.TestPublishDealsBatching(t, builder.MockSbBuilder, blockTime, dealStartEpoch)
 	})
 }
 

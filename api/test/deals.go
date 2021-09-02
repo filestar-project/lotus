@@ -4,6 +4,10 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"github.com/filecoin-project/go-state-types/abi"
+	"github.com/filecoin-project/lotus/chain/actors/builtin/market"
+	"github.com/filecoin-project/lotus/node"
+	market2 "github.com/filecoin-project/specs-actors/v2/actors/builtin/market"
 	"io/ioutil"
 	"math/rand"
 	"os"
@@ -147,6 +151,97 @@ func CreateClientFile(ctx context.Context, client api.FullNode, rseed int) (*api
 		return nil, nil, err
 	}
 	return res, data, nil
+}
+
+func TestPublishDealsBatching(t *testing.T, b APIBuilder, blocktime time.Duration, startEpoch abi.ChainEpoch) {
+	publishPeriod := 10 * time.Second
+	maxDealsPerMsg := uint64(2)
+
+	// Set max deals per publish deals message to 2
+	minerDef := []StorageMiner{{
+		Full: 0,
+		Opts: node.Override(
+			new(*storageadapter.DealPublisher),
+			storageadapter.NewDealPublisher(nil, storageadapter.PublishMsgConfig{
+				Period:         publishPeriod,
+				MaxDealsPerMsg: maxDealsPerMsg,
+			})),
+		Preseal: PresealGenesis,
+	}}
+
+	// Create a connect client and miner node
+	n, sn := b(t, OneFull, minerDef)
+	client := n[0].FullNode.(*impl.FullNodeAPI)
+	miner := sn[0]
+	s := connectAndStartMining(t, b, blocktime, client, miner)
+	defer s.blockMiner.Stop()
+
+	// Starts a deal and waits until it's published
+	runDealTillPublish := func(rseed int) {
+		res, _, err := CreateClientFile(s.ctx, s.client, rseed)
+		require.NoError(t, err)
+
+		upds, err := client.ClientGetDealUpdates(s.ctx)
+		require.NoError(t, err)
+
+		startDeal(t, s.ctx, s.miner, s.client, res.Root, false, startEpoch)
+
+		// TODO: this sleep is only necessary because deals don't immediately get logged in the dealstore, we should fix this
+		time.Sleep(time.Second)
+
+		done := make(chan struct{})
+		go func() {
+			for upd := range upds {
+				if upd.DataRef.Root == res.Root && upd.State == storagemarket.StorageDealAwaitingPreCommit {
+					done <- struct{}{}
+				}
+			}
+		}()
+		<-done
+	}
+
+	// Run three deals in parallel
+	done := make(chan struct{}, maxDealsPerMsg+1)
+	for rseed := 1; rseed <= 3; rseed++ {
+		rseed := rseed
+		go func() {
+			runDealTillPublish(rseed)
+			done <- struct{}{}
+		}()
+	}
+
+	// Wait for two of the deals to be published
+	for i := 0; i < int(maxDealsPerMsg); i++ {
+		<-done
+	}
+
+	// Expect a single PublishStorageDeals message that includes the first two deals
+	msgCids, err := s.client.StateListMessages(s.ctx, &api.MessageMatch{To: market.Address}, types.EmptyTSK, 1)
+	require.NoError(t, err)
+	count := 0
+	for _, msgCid := range msgCids {
+		msg, err := s.client.ChainGetMessage(s.ctx, msgCid)
+		require.NoError(t, err)
+
+		if msg.Method == market.Methods.PublishStorageDeals {
+			count++
+			var pubDealsParams market2.PublishStorageDealsParams
+			err = pubDealsParams.UnmarshalCBOR(bytes.NewReader(msg.Params))
+			require.NoError(t, err)
+			require.Len(t, pubDealsParams.Deals, int(maxDealsPerMsg))
+		}
+	}
+	require.Equal(t, 1, count)
+
+	// The third deal should be published once the publish period expires.
+	// Allow a little padding as it takes a moment for the state change to
+	// be noticed by the client.
+	padding := 10 * time.Second
+	select {
+	case <-time.After(publishPeriod + padding):
+		require.Fail(t, "Expected 3rd deal to be published once publish period elapsed")
+	case <-done: // Success
+	}
 }
 
 func TestFastRetrievalDealFlow(t *testing.T, b APIBuilder, blocktime time.Duration) {
@@ -313,7 +408,7 @@ loop:
 			t.Fatal(err)
 		}
 		switch di.State {
-		case storagemarket.StorageDealSealing:
+		case storagemarket.StorageDealAwaitingPreCommit, storagemarket.StorageDealSealing:
 			if noseal {
 				return
 			}
@@ -353,7 +448,7 @@ func waitDealPublished(t *testing.T, ctx context.Context, miner TestStorageNode,
 					t.Fatal("deal failed")
 				case storagemarket.StorageDealError:
 					t.Fatal("deal errored", di.Message)
-				case storagemarket.StorageDealFinalizing, storagemarket.StorageDealSealing, storagemarket.StorageDealActive:
+				case storagemarket.StorageDealFinalizing, storagemarket.StorageDealAwaitingPreCommit, storagemarket.StorageDealSealing, storagemarket.StorageDealActive:
 					fmt.Println("COMPLETE", di)
 					return
 				}

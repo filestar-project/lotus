@@ -25,7 +25,6 @@ import (
 
 	"github.com/filecoin-project/lotus/api"
 	"github.com/filecoin-project/lotus/build"
-	"github.com/filecoin-project/lotus/chain/actors"
 	"github.com/filecoin-project/lotus/chain/actors/builtin/market"
 	"github.com/filecoin-project/lotus/chain/events"
 	"github.com/filecoin-project/lotus/chain/events/state"
@@ -51,12 +50,15 @@ type ProviderNodeAdapter struct {
 	secb *sectorblocks.SectorBlocks
 	ev   *events.Events
 
-	publishSpec, addBalanceSpec *api.MessageSendSpec
-	dsMatcher                   *dealStateMatcher
+	dealPublisher *DealPublisher
+
+	addBalanceSpec *api.MessageSendSpec
+	dsMatcher      *dealStateMatcher
+	scMgr          *SectorCommittedManager
 }
 
-func NewProviderNodeAdapter(fc *config.MinerFeeConfig) func(mctx helpers.MetricsCtx, lc fx.Lifecycle, dag dtypes.StagingDAG, secb *sectorblocks.SectorBlocks, full api.FullNode) storagemarket.StorageProviderNode {
-	return func(mctx helpers.MetricsCtx, lc fx.Lifecycle, dag dtypes.StagingDAG, secb *sectorblocks.SectorBlocks, full api.FullNode) storagemarket.StorageProviderNode {
+func NewProviderNodeAdapter(fc *config.MinerFeeConfig) func(mctx helpers.MetricsCtx, lc fx.Lifecycle, dag dtypes.StagingDAG, secb *sectorblocks.SectorBlocks, full api.FullNode,  dealPublisher *DealPublisher) storagemarket.StorageProviderNode {
+	return func(mctx helpers.MetricsCtx, lc fx.Lifecycle, dag dtypes.StagingDAG, secb *sectorblocks.SectorBlocks, full api.FullNode, dealPublisher *DealPublisher) storagemarket.StorageProviderNode {
 		ctx := helpers.LifecycleCtx(mctx, lc)
 
 		ev := events.NewEvents(ctx, full)
@@ -66,44 +68,19 @@ func NewProviderNodeAdapter(fc *config.MinerFeeConfig) func(mctx helpers.Metrics
 			dag:       dag,
 			secb:      secb,
 			ev:        ev,
+			dealPublisher: dealPublisher,
 			dsMatcher: newDealStateMatcher(state.NewStatePredicates(state.WrapFastAPI(full))),
 		}
 		if fc != nil {
-			na.publishSpec = &api.MessageSendSpec{MaxFee: abi.TokenAmount(fc.MaxPublishDealsFee)}
 			na.addBalanceSpec = &api.MessageSendSpec{MaxFee: abi.TokenAmount(fc.MaxMarketBalanceAddFee)}
 		}
+		na.scMgr = NewSectorCommittedManager(ev, na, &apiWrapper{api: full})
 		return na
 	}
 }
 
 func (n *ProviderNodeAdapter) PublishDeals(ctx context.Context, deal storagemarket.MinerDeal) (cid.Cid, error) {
-	log.Info("publishing deal")
-
-	mi, err := n.StateMinerInfo(ctx, deal.Proposal.Provider, types.EmptyTSK)
-	if err != nil {
-		return cid.Undef, err
-	}
-
-	params, err := actors.SerializeParams(&market2.PublishStorageDealsParams{
-		Deals: []market2.ClientDealProposal{deal.ClientDealProposal},
-	})
-
-	if err != nil {
-		return cid.Undef, xerrors.Errorf("serializing PublishStorageDeals params failed: %w", err)
-	}
-
-	// TODO: We may want this to happen after fetching data
-	smsg, err := n.MpoolPushMessage(ctx, &types.Message{
-		To:     market.Address,
-		From:   mi.Worker,
-		Value:  types.NewInt(0),
-		Method: market.Methods.PublishStorageDeals,
-		Params: params,
-	}, n.publishSpec)
-	if err != nil {
-		return cid.Undef, err
-	}
-	return smsg.Cid(), nil
+	return n.dealPublisher.Publish(ctx, deal.ClientDealProposal)
 }
 
 func (n *ProviderNodeAdapter) OnDealComplete(ctx context.Context, deal storagemarket.MinerDeal, pieceSize abi.UnpaddedPieceSize, pieceData io.Reader) (*storagemarket.PackingResult, error) {
@@ -283,8 +260,14 @@ func (n *ProviderNodeAdapter) DealProviderCollateralBounds(ctx context.Context, 
 	return bounds.Min, bounds.Max, nil
 }
 
-func (n *ProviderNodeAdapter) OnDealSectorCommitted(ctx context.Context, provider address.Address, dealID abi.DealID, proposal market2.DealProposal, publishCid *cid.Cid, cb storagemarket.DealSectorCommittedCallback) error {
-	return OnDealSectorCommitted(ctx, n, n.ev, provider, dealID, market.DealProposal(proposal), publishCid, cb)
+// TODO: Remove dealID parameter, change publishCid to be cid.Cid (instead of pointer)
+func (n *ProviderNodeAdapter) OnDealSectorPreCommitted(ctx context.Context, provider address.Address, dealID abi.DealID, proposal market2.DealProposal, publishCid *cid.Cid, cb storagemarket.DealSectorPreCommittedCallback) error {
+	return n.scMgr.OnDealSectorPreCommitted(ctx, provider, market.DealProposal(proposal), *publishCid, cb)
+}
+
+// TODO: Remove dealID parameter, change publishCid to be cid.Cid (instead of pointer)
+func (n *ProviderNodeAdapter) OnDealSectorCommitted(ctx context.Context, provider address.Address, dealID abi.DealID, sectorNumber abi.SectorNumber, proposal market2.DealProposal, publishCid *cid.Cid, cb storagemarket.DealSectorCommittedCallback) error {
+	return n.scMgr.OnDealSectorCommitted(ctx, provider, sectorNumber, market.DealProposal(proposal), *publishCid, cb)
 }
 
 func (n *ProviderNodeAdapter) GetChainHead(ctx context.Context) (shared.TipSetToken, abi.ChainEpoch, error) {
@@ -302,6 +285,31 @@ func (n *ProviderNodeAdapter) WaitForMessage(ctx context.Context, mcid cid.Cid, 
 		return cb(0, nil, cid.Undef, err)
 	}
 	return cb(receipt.Receipt.ExitCode, receipt.Receipt.Return, receipt.Message, nil)
+}
+
+func (n *ProviderNodeAdapter) WaitForPublishDeals(ctx context.Context, publishCid cid.Cid, proposal market2.DealProposal) (*storagemarket.PublishDealsWaitResult, error) {
+	// Wait for deal to be published (plus additional time for confidence)
+	receipt, err := n.StateWaitMsg(ctx, publishCid, 2*build.MessageConfidence)
+	if err != nil {
+		return nil, xerrors.Errorf("WaitForPublishDeals errored: %w", err)
+	}
+	if receipt.Receipt.ExitCode != exitcode.Ok {
+		return nil, xerrors.Errorf("WaitForPublishDeals exit code: %s", receipt.Receipt.ExitCode)
+	}
+
+	// The deal ID may have changed since publish if there was a reorg, so
+	// get the current deal ID
+	head, err := n.ChainHead(ctx)
+	if err != nil {
+		return nil, xerrors.Errorf("WaitForPublishDeals failed to get chain head: %w", err)
+	}
+
+	res, err := n.scMgr.dealInfo.GetCurrentDealInfo(ctx, head.Key().Bytes(), (*market.DealProposal)(&proposal), publishCid)
+	if err != nil {
+		return nil, xerrors.Errorf("WaitForPublishDeals getting deal info errored: %w", err)
+	}
+
+	return &storagemarket.PublishDealsWaitResult{DealID: res.DealID, FinalCid: receipt.Message}, nil
 }
 
 func (n *ProviderNodeAdapter) GetDataCap(ctx context.Context, addr address.Address, encodedTs shared.TipSetToken) (*abi.StoragePower, error) {
