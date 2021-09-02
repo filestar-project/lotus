@@ -26,6 +26,7 @@ import (
 type WindowPoStScheduler struct {
 	api              storageMinerApi
 	feeCfg           config.MinerFeeConfig
+	addrSel          *AddressSelector
 	prover           storage.Prover
 	verifier         ffiwrapper.Verifier
 	faultTracker     sectorstorage.FaultTracker

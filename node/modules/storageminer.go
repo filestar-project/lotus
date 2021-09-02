@@ -151,6 +151,35 @@ func SectorIDCounter(ds dtypes.MetadataDS) sealing.SectorIDCounter {
 	return &sidsc{sc}
 }
 
+func AddressSelector(addrConf *config.MinerAddressConfig) func() (*storage.AddressSelector, error) {
+	return func() (*storage.AddressSelector, error) {
+		as := &storage.AddressSelector{}
+		if addrConf == nil {
+			return as, nil
+		}
+
+		for _, s := range addrConf.PreCommitControl {
+			addr, err := address.NewFromString(s)
+			if err != nil {
+				return nil, xerrors.Errorf("parsing precommit control address: %w", err)
+			}
+
+			as.PreCommitControl = append(as.PreCommitControl, addr)
+		}
+
+		for _, s := range addrConf.CommitControl {
+			addr, err := address.NewFromString(s)
+			if err != nil {
+				return nil, xerrors.Errorf("parsing commit control address: %w", err)
+			}
+
+			as.CommitControl = append(as.CommitControl, addr)
+		}
+
+		return as, nil
+	}
+}
+
 type StorageMinerParams struct {
 	fx.In
 

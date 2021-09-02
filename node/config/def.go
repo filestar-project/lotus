@@ -86,6 +86,11 @@ type MinerFeeConfig struct {
 	MaxMarketBalanceAddFee types.FIL
 }
 
+type MinerAddressConfig struct {
+	PreCommitControl []string
+	CommitControl    []string
+}
+
 // API contains configs for API endpoint
 type API struct {
 	ListenAddress       string
@@ -124,6 +129,7 @@ type Client struct {
 	IpfsOnlineMode      bool
 	IpfsMAddr           string
 	IpfsUseForRetrieval bool
+	SimultaneousTransfers uint64
 }
 
 type Wallet struct {

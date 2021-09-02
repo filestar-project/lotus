@@ -58,6 +58,7 @@ type StorageMinerAPI struct {
 	storiface.WorkerReturn
 	DataTransfer  dtypes.ProviderDataTransfer
 	Host          host.Host
+	AddrSel       *storage.AddressSelector
 	DealPublisher *storageadapter.DealPublisher
 
 	DS dtypes.MetadataDS
@@ -645,6 +646,10 @@ func (sm *StorageMinerAPI) CheckProvable(ctx context.Context, pp abi.RegisteredP
 	}
 
 	return out, nil
+}
+
+func (sm *StorageMinerAPI) ActorAddressConfig(ctx context.Context) (api.AddressConfig, error) {
+	return sm.AddrSel.AddressConfig, nil
 }
 
 var _ api.StorageMiner = &StorageMinerAPI{}

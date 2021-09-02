@@ -3,6 +3,7 @@ package storage
 import (
 	"bytes"
 	"context"
+	"github.com/filecoin-project/lotus/chain/messagepool"
 	"github.com/filecoin-project/specs-actors/actors/runtime/proof"
 	"time"
 
@@ -820,14 +821,38 @@ func (s *WindowPoStScheduler) setSender(ctx context.Context, msg *types.Message,
 	}
 	*msg = *gm
 
+	// estimate
+	minGasFeeMsg := *msg
+
+	minGasFeeMsg.GasPremium, err = s.api.GasEstimateGasPremium(ctx, 5, msg.From, msg.GasLimit, types.TipSetKey{})
+	if err != nil {
+		log.Errorf("failed to estimate minimum gas premium: %+v", err)
+		minGasFeeMsg.GasPremium = msg.GasPremium
+	}
+
+	minGasFeeMsg.GasFeeCap, err = s.api.GasEstimateFeeCap(ctx, &minGasFeeMsg, 4, types.EmptyTSK)
+	if err != nil {
+		log.Errorf("failed to estimate minimum gas fee cap: %+v", err)
+		minGasFeeMsg.GasFeeCap = msg.GasFeeCap
+	}
+
+	goodFunds := big.Add(msg.RequiredFunds(), msg.Value)
 	minFunds := big.Add(msg.RequiredFunds(), msg.Value)
 
-	pa, err := AddressFor(ctx, s.api, mi, PoStAddr, minFunds)
+	pa, avail, err := s.addrSel.AddressFor(ctx, s.api, mi, api.PoStAddr, goodFunds, minFunds)
 	if err != nil {
 		log.Errorw("error selecting address for window post", "error", err)
 		return nil
 	}
 
 	msg.From = pa
+	bestReq := big.Add(msg.RequiredFunds(), msg.Value)
+	if avail.LessThan(bestReq) {
+		mff := func() (abi.TokenAmount, error) {
+			return msg.RequiredFunds(), nil
+		}
+
+		messagepool.CapGasFee(mff, msg, &api.MessageSendSpec{MaxFee: big.Min(big.Sub(avail, msg.Value), msg.RequiredFunds())})
+	}
 	return nil
 }

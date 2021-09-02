@@ -31,6 +31,7 @@ type StorageMiner interface {
 	ActorAddress(context.Context) (address.Address, error)
 
 	ActorSectorSize(context.Context, address.Address) (abi.SectorSize, error)
+	ActorAddressConfig(ctx context.Context) (AddressConfig, error)
 
 	MiningBase(context.Context) (*types.TipSet, error)
 
@@ -212,6 +213,22 @@ func (st *SealSeed) Equals(ost *SealSeed) bool {
 }
 
 type SectorState string
+
+type AddrUse int
+
+const (
+	PreCommitAddr AddrUse = iota
+	CommitAddr
+	PoStAddr
+
+	TerminateSectorsAddr
+)
+
+type AddressConfig struct {
+	PreCommitControl []address.Address
+	CommitControl    []address.Address
+	TerminateControl []address.Address
+}
 
 // PendingDealInfo has info about pending deals and when they are due to be
 // published
