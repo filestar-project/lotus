@@ -26,6 +26,7 @@ import (
 	"github.com/filecoin-project/lotus/api"
 	"github.com/filecoin-project/lotus/build"
 	sealing "github.com/filecoin-project/lotus/extern/storage-sealing"
+	"github.com/filecoin-project/lotus/markets/storageadapter"
 	dag "github.com/ipfs/go-merkledag"
 	dstest "github.com/ipfs/go-merkledag/test"
 	unixfile "github.com/ipfs/go-unixfs/file"
@@ -35,7 +36,7 @@ import (
 	ipld "github.com/ipfs/go-ipld-format"
 )
 
-func TestDealFlow(t *testing.T, b APIBuilder, blocktime time.Duration, carExport, fastRet bool) {
+func TestDealFlow(t *testing.T, b APIBuilder, blocktime time.Duration, carExport, fastRet bool, startEpoch abi.ChainEpoch) {
 
 	ctx := context.Background()
 	n, sn := b(t, OneFull, OneMiner)
@@ -64,14 +65,14 @@ func TestDealFlow(t *testing.T, b APIBuilder, blocktime time.Duration, carExport
 		}
 	}()
 
-	MakeDeal(t, ctx, 6, client, miner, carExport, fastRet)
+	MakeDeal(t, ctx, 6, client, miner, carExport, fastRet, startEpoch)
 
 	atomic.AddInt64(&mine, -1)
 	fmt.Println("shutting down mining")
 	<-done
 }
 
-func TestDoubleDealFlow(t *testing.T, b APIBuilder, blocktime time.Duration) {
+func TestDoubleDealFlow(t *testing.T, b APIBuilder, blocktime time.Duration, startEpoch abi.ChainEpoch) {
 
 	ctx := context.Background()
 	n, sn := b(t, OneFull, OneMiner)
@@ -101,15 +102,15 @@ func TestDoubleDealFlow(t *testing.T, b APIBuilder, blocktime time.Duration) {
 		}
 	}()
 
-	MakeDeal(t, ctx, 6, client, miner, false, false)
-	MakeDeal(t, ctx, 7, client, miner, false, false)
+	MakeDeal(t, ctx, 6, client, miner, false, false, startEpoch)
+	MakeDeal(t, ctx, 7, client, miner, false, false, startEpoch)
 
 	atomic.AddInt64(&mine, -1)
 	fmt.Println("shutting down mining")
 	<-done
 }
 
-func MakeDeal(t *testing.T, ctx context.Context, rseed int, client api.FullNode, miner TestStorageNode, carExport, fastRet bool) {
+func MakeDeal(t *testing.T, ctx context.Context, rseed int, client api.FullNode, miner TestStorageNode, carExport, fastRet bool, startEpoch abi.ChainEpoch) {
 	res, data, err := CreateClientFile(ctx, client, rseed)
 	if err != nil {
 		t.Fatal(err)
@@ -118,7 +119,7 @@ func MakeDeal(t *testing.T, ctx context.Context, rseed int, client api.FullNode,
 	fcid := res.Root
 	fmt.Println("FILE CID: ", fcid)
 
-	deal := startDeal(t, ctx, miner, client, fcid, fastRet)
+	deal := startDeal(t, ctx, miner, client, fcid, fastRet, startEpoch)
 
 	// TODO: this sleep is only necessary because deals don't immediately get logged in the dealstore, we should fix this
 	time.Sleep(time.Second)
@@ -244,7 +245,7 @@ func TestPublishDealsBatching(t *testing.T, b APIBuilder, blocktime time.Duratio
 	}
 }
 
-func TestFastRetrievalDealFlow(t *testing.T, b APIBuilder, blocktime time.Duration) {
+func TestFastRetrievalDealFlow(t *testing.T, b APIBuilder, blocktime time.Duration, startEpoch abi.ChainEpoch) {
 
 	ctx := context.Background()
 	n, sn := b(t, OneFull, OneMiner)
@@ -284,7 +285,7 @@ func TestFastRetrievalDealFlow(t *testing.T, b APIBuilder, blocktime time.Durati
 
 	fmt.Println("FILE CID: ", fcid)
 
-	deal := startDeal(t, ctx, miner, client, fcid, true)
+	deal := startDeal(t, ctx, miner, client, fcid, true, startEpoch)
 
 	waitDealPublished(t, ctx, miner, deal)
 	fmt.Println("deal published, retrieving")
@@ -347,13 +348,13 @@ func TestSenondDealRetrieval(t *testing.T, b APIBuilder, blocktime time.Duration
 			t.Fatal(err)
 		}
 
-		deal1 := startDeal(t, ctx, miner, client, fcid1, true)
+		deal1 := startDeal(t, ctx, miner, client, fcid1, true, 0)
 
 		// TODO: this sleep is only necessary because deals don't immediately get logged in the dealstore, we should fix this
 		time.Sleep(time.Second)
 		waitDealSealed(t, ctx, miner, client, deal1, true)
 
-		deal2 := startDeal(t, ctx, miner, client, fcid2, true)
+		deal2 := startDeal(t, ctx, miner, client, fcid2, true, 0)
 
 		time.Sleep(time.Second)
 		waitDealSealed(t, ctx, miner, client, deal2, false)
@@ -373,7 +374,7 @@ func TestSenondDealRetrieval(t *testing.T, b APIBuilder, blocktime time.Duration
 	<-done
 }
 
-func startDeal(t *testing.T, ctx context.Context, miner TestStorageNode, client api.FullNode, fcid cid.Cid, fastRet bool) *cid.Cid {
+func startDeal(t *testing.T, ctx context.Context, miner TestStorageNode, client api.FullNode, fcid cid.Cid, fastRet bool, startEpoch abi.ChainEpoch) *cid.Cid {
 	maddr, err := miner.ActorAddress(ctx)
 	if err != nil {
 		t.Fatal(err)
@@ -391,6 +392,7 @@ func startDeal(t *testing.T, ctx context.Context, miner TestStorageNode, client 
 		Wallet:            addr,
 		Miner:             maddr,
 		EpochPrice:        types.NewInt(1000000),
+		DealStartEpoch:    startEpoch,
 		MinBlocksDuration: uint64(build.MinDealDuration),
 		FastRetrieval:     fastRet,
 	})
@@ -550,4 +552,41 @@ func extractCarData(t *testing.T, ctx context.Context, rdata []byte, rpath strin
 		t.Fatal(err)
 	}
 	return rdata
+}
+
+type dealsScaffold struct {
+	ctx        context.Context
+	client     *impl.FullNodeAPI
+	miner      TestStorageNode
+	blockMiner *BlockMiner
+}
+
+func setupOneClientOneMiner(t *testing.T, b APIBuilder, blocktime time.Duration) *dealsScaffold {
+	n, sn := b(t, OneFull, OneMiner)
+	client := n[0].FullNode.(*impl.FullNodeAPI)
+	miner := sn[0]
+	return connectAndStartMining(t, b, blocktime, client, miner)
+}
+
+func connectAndStartMining(t *testing.T, b APIBuilder, blocktime time.Duration, client *impl.FullNodeAPI, miner TestStorageNode) *dealsScaffold {
+	ctx := context.Background()
+	addrinfo, err := client.NetAddrsListen(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := miner.NetConnect(ctx, addrinfo); err != nil {
+		t.Fatal(err)
+	}
+	time.Sleep(time.Second)
+
+	blockMiner := NewBlockMiner(ctx, t, miner, blocktime)
+	blockMiner.MineBlocks()
+
+	return &dealsScaffold{
+		ctx:        ctx,
+		client:     client,
+		miner:      miner,
+		blockMiner: blockMiner,
+	}
 }
