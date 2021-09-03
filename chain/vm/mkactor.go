@@ -42,7 +42,7 @@ func TryCreateAccountActor(rt *Runtime, addr address.Address) (*types.Actor, add
 		return nil, address.Undef, err
 	}
 
-	if addr == build.ZeroAddress && rt.NetworkVersion() >= network.Version10 {
+	if addr == build.ZeroAddress && rt.NetworkVersion() >= network.Version9 {
 		return nil, address.Undef, aerrors.New(exitcode.ErrIllegalArgument, "cannot create the zero bls actor")
 	}
 
