@@ -186,7 +186,7 @@ func CapGasFee(mff dtypes.DefaultMaxFeeFunc, msg *types.Message, sendSepc *api.M
 	if sendSepc != nil {
 		maxFee = sendSepc.MaxFee
 	}
-	if maxFee.Equals(big.Zero()) {
+	if maxFee.Int == nil || maxFee.Equals(big.Zero()) {
 		mf, err := mff()
 		if err != nil {
 			log.Errorf("failed to get default max gas fee: %+v", err)
