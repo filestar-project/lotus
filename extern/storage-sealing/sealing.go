@@ -73,6 +73,8 @@ type SealingAPI interface {
 
 type SectorStateNotifee func(before, after SectorInfo)
 
+type AddrSel func(ctx context.Context, mi miner.MinerInfo, use api.AddrUse, goodFunds, minFunds abi.TokenAmount) (address.Address, abi.TokenAmount, error)
+
 type Sealing struct {
 	api    SealingAPI
 	feeCfg FeeConfig
@@ -92,6 +94,7 @@ type Sealing struct {
 	toUpgrade map[abi.SectorNumber]struct{}
 
 	notifee SectorStateNotifee
+	addrSel AddrSel
 
 	stats SectorStats
 
@@ -102,6 +105,7 @@ type Sealing struct {
 type FeeConfig struct {
 	MaxPreCommitGasFee abi.TokenAmount
 	MaxCommitGasFee    abi.TokenAmount
+	MaxTerminateGasFee abi.TokenAmount
 }
 
 type UnsealedSectorMap struct {
@@ -117,7 +121,7 @@ type UnsealedSectorInfo struct {
 	ssize      abi.SectorSize
 }
 
-func New(api SealingAPI, fc FeeConfig, events Events, maddr address.Address, ds datastore.Batching, sealer sectorstorage.SectorManager, sc SectorIDCounter, verif ffiwrapper.Verifier, pcp PreCommitPolicy, gc GetSealingConfigFunc, notifee SectorStateNotifee) *Sealing {
+func New(api SealingAPI, fc FeeConfig, events Events, maddr address.Address, ds datastore.Batching, sealer sectorstorage.SectorManager, sc SectorIDCounter, verif ffiwrapper.Verifier, pcp PreCommitPolicy, gc GetSealingConfigFunc, notifee SectorStateNotifee, as AddrSel) *Sealing {
 	s := &Sealing{
 		api:    api,
 		feeCfg: fc,
@@ -136,6 +140,7 @@ func New(api SealingAPI, fc FeeConfig, events Events, maddr address.Address, ds 
 		toUpgrade: map[abi.SectorNumber]struct{}{},
 
 		notifee: notifee,
+		addrSel: as,
 
 		getConfig: gc,
 		dealInfo:  &CurrentDealInfoManager{api},

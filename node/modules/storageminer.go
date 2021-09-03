@@ -193,6 +193,7 @@ type StorageMinerParams struct {
 	Verifier           ffiwrapper.Verifier
 	GetSealingConfigFn dtypes.GetSealingConfigFunc
 	Journal            journal.Journal
+	AddrSel            *storage.AddressSelector
 }
 
 func StorageMiner(fc config.MinerFeeConfig) func(params StorageMinerParams) (*storage.Miner, error) {
@@ -208,6 +209,7 @@ func StorageMiner(fc config.MinerFeeConfig) func(params StorageMinerParams) (*st
 			verif  = params.Verifier
 			gsd    = params.GetSealingConfigFn
 			j      = params.Journal
+			as     = params.AddrSel
 		)
 
 		maddr, err := minerAddrFromDS(ds)
@@ -217,12 +219,12 @@ func StorageMiner(fc config.MinerFeeConfig) func(params StorageMinerParams) (*st
 
 		ctx := helpers.LifecycleCtx(mctx, lc)
 
-		fps, err := storage.NewWindowedPoStScheduler(api, fc, sealer, verif, sealer, j, maddr)
+		fps, err := storage.NewWindowedPoStScheduler(api, fc, as, sealer, verif, sealer, j, maddr)
 		if err != nil {
 			return nil, err
 		}
 
-		sm, err := storage.NewMiner(api, maddr, h, ds, sealer, sc, verif, gsd, fc, j)
+		sm, err := storage.NewMiner(api, maddr, h, ds, sealer, sc, verif, gsd, fc, j, as)
 		if err != nil {
 			return nil, err
 		}

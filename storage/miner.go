@@ -48,6 +48,7 @@ type Miner struct {
 	ds     datastore.Batching
 	sc     sealing.SectorIDCounter
 	verif  ffiwrapper.Verifier
+	addrSel *AddressSelector
 
 	maddr address.Address
 
@@ -115,7 +116,7 @@ type storageMinerApi interface {
 	WalletHas(context.Context, address.Address) (bool, error)
 }
 
-func NewMiner(api storageMinerApi, maddr address.Address, h host.Host, ds datastore.Batching, sealer sectorstorage.SectorManager, sc sealing.SectorIDCounter, verif ffiwrapper.Verifier, gsd dtypes.GetSealingConfigFunc, feeCfg config.MinerFeeConfig, journal journal.Journal) (*Miner, error) {
+func NewMiner(api storageMinerApi, maddr address.Address, h host.Host, ds datastore.Batching, sealer sectorstorage.SectorManager, sc sealing.SectorIDCounter, verif ffiwrapper.Verifier, gsd dtypes.GetSealingConfigFunc, feeCfg config.MinerFeeConfig, journal journal.Journal, as *AddressSelector) (*Miner, error) {
 	m := &Miner{
 		api:    api,
 		feeCfg: feeCfg,
@@ -124,6 +125,7 @@ func NewMiner(api storageMinerApi, maddr address.Address, h host.Host, ds datast
 		ds:     ds,
 		sc:     sc,
 		verif:  verif,
+		addrSel: as,
 
 		maddr:          maddr,
 		getSealConfig:  gsd,
@@ -153,7 +155,11 @@ func (m *Miner) Run(ctx context.Context) error {
 	adaptedAPI := NewSealingAPIAdapter(m.api)
 	// TODO: Maybe we update this policy after actor upgrades?
 	pcp := sealing.NewBasicPreCommitPolicy(adaptedAPI, policy.GetMaxSectorExpirationExtension()-(md.WPoStProvingPeriod*2), md.PeriodStart%md.WPoStProvingPeriod)
-	m.sealing = sealing.New(adaptedAPI, fc, NewEventsAdapter(evts), m.maddr, m.ds, m.sealer, m.sc, m.verif, &pcp, sealing.GetSealingConfigFunc(m.getSealConfig), m.handleSealingNotifications)
+	as := func(ctx context.Context, mi miner.MinerInfo, use api.AddrUse, goodFunds, minFunds abi.TokenAmount) (address.Address, abi.TokenAmount, error) {
+		return m.addrSel.AddressFor(ctx, m.api, mi, use, goodFunds, minFunds)
+	}
+
+	m.sealing = sealing.New(adaptedAPI, fc, NewEventsAdapter(evts), m.maddr, m.ds, m.sealer, m.sc, m.verif, &pcp, sealing.GetSealingConfigFunc(m.getSealConfig), m.handleSealingNotifications, as)
 
 	go m.sealing.Run(ctx) //nolint:errcheck // logged intside the function
 

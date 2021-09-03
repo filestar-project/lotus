@@ -3,6 +3,7 @@ package miner
 import (
 	"github.com/filecoin-project/go-state-types/big"
 	"github.com/filecoin-project/go-state-types/network"
+	miner2 "github.com/filecoin-project/specs-actors/v2/actors/builtin/miner"
 	builtin3 "github.com/filecoin-project/specs-actors/v3/actors/builtin"
 	"github.com/ipfs/go-cid"
 	"github.com/libp2p/go-libp2p-core/peer"
@@ -46,6 +47,10 @@ var WPoStChallengeLookback = miner0.WPoStChallengeLookback
 var FaultDeclarationCutoff = miner0.FaultDeclarationCutoff
 
 const MinSectorExpiration = miner0.MinSectorExpiration
+
+// Not used / checked in v0
+var DeclarationsMax = miner2.DeclarationsMax
+var AddressedSectorsMax = miner2.AddressedSectorsMax
 
 func Load(store adt.Store, act *types.Actor) (st State, err error) {
 	switch act.Code {
