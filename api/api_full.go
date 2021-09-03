@@ -659,6 +659,7 @@ type Message struct {
 
 type ActorState struct {
 	Balance types.BigInt
+	Code    cid.Cid
 	State   interface{}
 }
 
