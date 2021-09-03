@@ -45,7 +45,7 @@ const UpgradeStakeHeight = 584460
 const Upgrade8GiBPoStGasHeight = 814860
 
 // TODO
-const UpgradeActorsV3Height = 99999999
+var UpgradeActorsV3Height = abi.ChainEpoch(99999999)
 
 const UpgradeTokenHeight = math.MaxInt64
 
@@ -60,11 +60,13 @@ func init() {
 		SetAddressNetwork(address.Mainnet)
 	}
 
-	if os.Getenv("LOTUS_DISABLE_V2_ACTOR_MIGRATION") == "1" {
-		UpgradeActorsV2Height = math.MaxInt64
+	if os.Getenv("LOTUS_DISABLE_V3_ACTOR_MIGRATION") == "1" {
+		UpgradeActorsV3Height = math.MaxInt64 - 2
 	}
 
 	Devnet = false
+
+	BuildType = BuildMainnet
 }
 
 const BlockDelaySecs = uint64(builtin2.EpochDurationSeconds)

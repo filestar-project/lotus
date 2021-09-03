@@ -11,15 +11,18 @@ var BuildType int
 
 const (
 	BuildDefault = 0
-	Build2k      = 0x1
-	Build8g      = 0x2
-	BuildDebug   = 0x3
+	BuildMainnet = 0x1
+	Build2k      = 0x2
+	Build8g      = 0x3
+	BuildDebug   = 0x4
 )
 
 func buildType() string {
 	switch BuildType {
 	case BuildDefault:
 		return ""
+	case BuildMainnet:
+		return "+mainnet"
 	case BuildDebug:
 		return "+debug"
 	case Build2k:
