@@ -232,7 +232,6 @@ func LoadStateTree(cst cbor.IpldStore, c cid.Cid) (*StateTree, error) {
 		if tree != nil {
 			hamt = tree.Map
 		}
-		hamt = tree.Map
 	default:
 		return nil, xerrors.Errorf("unsupported state tree version: %d", root.Version)
 	}
