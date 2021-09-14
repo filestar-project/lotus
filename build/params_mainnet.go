@@ -3,6 +3,7 @@
 // +build !8g
 // +build !testground
 // +build !testnet
+// +build !mainnet
 
 package build
 
