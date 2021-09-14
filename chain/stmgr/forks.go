@@ -63,7 +63,7 @@ type MigrationCache interface {
 // - The height is the upgrade epoch height (already executed).
 // - The tipset is the tipset for the last non-null block before the upgrade. Do
 //   not assume that ts.Height() is the upgrade height.
-type MigrationFunc  func(
+type MigrationFunc func(
 	ctx context.Context,
 	sm *StateManager, cache MigrationCache,
 	cb ExecCallback, oldState cid.Cid,
@@ -110,7 +110,7 @@ type Upgrade struct {
 	// PreMigrations  specifies a set of pre-migration functions to run at the indicated epochs.
 	// These functions should fill the given cache with information that can speed up the
 	// eventual full migration at the upgrade epoch.
-	PreMigrations  []PreMigration
+	PreMigrations []PreMigration
 }
 
 type UpgradeSchedule []Upgrade
@@ -1025,7 +1025,7 @@ func UpgradeActorsV3(ctx context.Context, sm *StateManager, cache MigrationCache
 		return cid.Undef, xerrors.Errorf("getting state tree: %w", err)
 	}
 
-	if build.BuildType == build.BuildMainnet {
+	if build.BuildType == build.BuildTestnet {
 		err := terminateActor(ctx, tree, build.ZeroAddress, cb, epoch)
 		if err != nil && !xerrors.Is(err, types.ErrActorNotFound) {
 			return cid.Undef, xerrors.Errorf("deleting zero bls actor: %w", err)
@@ -1375,7 +1375,6 @@ func resetMultisigVesting0(ctx context.Context, store adt0.Store, tree *state.St
 
 	return nil
 }
-
 
 func makeFakeMsg(from address.Address, to address.Address, amt abi.TokenAmount, nonce uint64) *types.Message {
 	return &types.Message{
