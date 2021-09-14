@@ -14,6 +14,7 @@ const (
 	Build2k      = 0x1
 	Build8g      = 0x2
 	BuildDebug   = 0x3
+	BuildTestnet = 0x4
 )
 
 func buildType() string {
@@ -26,6 +27,8 @@ func buildType() string {
 		return "+2k"
 	case Build8g:
 		return "+8g"
+	case BuildTestnet:
+		return "+testnet"
 	default:
 		return "+huh?"
 	}
