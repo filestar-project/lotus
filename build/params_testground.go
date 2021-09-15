@@ -81,22 +81,31 @@ var (
 	UpgradeBreezeHeight      abi.ChainEpoch = -1
 	BreezeGasTampingDuration abi.ChainEpoch = 0
 
-	UpgradeSmokeHeight    abi.ChainEpoch = -1
-	UpgradeIgnitionHeight abi.ChainEpoch = -2
-	UpgradeRefuelHeight   abi.ChainEpoch = -3
-	UpgradeTapeHeight     abi.ChainEpoch = -4
-	UpgradeActorsV2Height abi.ChainEpoch = 10
-	UpgradeLiftoffHeight  abi.ChainEpoch = -5
-	UpgradeKumquatHeight  abi.ChainEpoch = -6
+	UpgradeSmokeHeight       abi.ChainEpoch = -1
+	UpgradeIgnitionHeight    abi.ChainEpoch = -2
+	UpgradeRefuelHeight      abi.ChainEpoch = -3
+	UpgradeTapeHeight        abi.ChainEpoch = -4
+	UpgradeActorsV2Height    abi.ChainEpoch = 10
+	UpgradeLiftoffHeight     abi.ChainEpoch = -5
+	UpgradeKumquatHeight     abi.ChainEpoch = -6
+	Upgrade8GiBSectorHeight  abi.ChainEpoch = -7
+	UpgradeStakeHeight       abi.ChainEpoch = -8
+	Upgrade8GiBPoStGasHeight abi.ChainEpoch = -9
+	UpgradeActorsV3Height    abi.ChainEpoch = -10
+	UpgradeTokenHeight       abi.ChainEpoch = -11
 
 	DrandSchedule = map[abi.ChainEpoch]DrandEnum{
 		0: DrandMainnet,
 	}
 
-	NewestNetworkVersion       = network.Version5
+	NewestNetworkVersion       = network.Version9
 	ActorUpgradeNetworkVersion = network.Version4
 
 	Devnet = true
+	ZeroAddress = MustParseAddress("f3yaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaby2smx7a")
+
+	BootstrappersFile = ""
+	GenesisFile       = ""
 )
 
 const BootstrapPeerThreshold = 1
