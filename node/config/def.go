@@ -41,6 +41,7 @@ type StorageMiner struct {
 	Sealing    SealingConfig
 	Storage    sectorstorage.SealerConfig
 	Fees       MinerFeeConfig
+	Addresses  MinerAddressConfig
 }
 
 type DealmakingConfig struct {
@@ -226,6 +227,11 @@ func DefaultStorageMiner() *StorageMiner {
 			MaxWindowPoStGasFee:    types.MustParseFIL("5"),
 			MaxPublishDealsFee:     types.MustParseFIL("0.05"),
 			MaxMarketBalanceAddFee: types.MustParseFIL("0.007"),
+		},
+
+		Addresses: MinerAddressConfig{
+			PreCommitControl: []string{},
+			CommitControl:    []string{},
 		},
 	}
 	cfg.Common.API.ListenAddress = "/ip4/127.0.0.1/tcp/2345/http"

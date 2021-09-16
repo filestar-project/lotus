@@ -11,14 +11,6 @@ import (
 	"github.com/filecoin-project/lotus/chain/types"
 )
 
-type AddrUse int
-
-const (
-	PreCommitAddr AddrUse = iota
-	CommitAddr
-	PoStAddr
-)
-
 type addrSelectApi interface {
 	WalletBalance(context.Context, address.Address) (types.BigInt, error)
 	WalletHas(context.Context, address.Address) (bool, error)

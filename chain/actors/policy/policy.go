@@ -34,14 +34,12 @@ const (
 // This should only be used for testing.
 func SetSupportedProofTypes(types ...abi.RegisteredSealProof) {
 	newTypes := make(map[abi.RegisteredSealProof]struct{}, len(types))
-	for _, t := range types {
-		newTypes[t] = struct{}{}
-	}
 	// Set for all miner versions.
 	miner0.SupportedProofTypes = newTypes
 	miner2.SupportedProofTypes = newTypes
 	miner3.PreCommitSealProofTypesV0 = newTypes
 	miner3.PreCommitSealProofTypesV7 = newTypes
+	AddSupportedProofTypes(types...)
 }
 
 // AddSupportedProofTypes sets supported proof types, across all actor versions.

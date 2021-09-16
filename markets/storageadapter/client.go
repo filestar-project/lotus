@@ -36,9 +36,7 @@ import (
 )
 
 type ClientNodeAdapter struct {
-	full.StateAPI
-	full.ChainAPI
-	full.MpoolAPI
+	*clientApi
 
 	fundmgr   *market.FundManager
 	ev        *events.Events
@@ -49,17 +47,16 @@ type ClientNodeAdapter struct {
 type clientApi struct {
 	full.ChainAPI
 	full.StateAPI
+	full.MpoolAPI
 }
 
 func NewClientNodeAdapter(mctx helpers.MetricsCtx, lc fx.Lifecycle, stateapi full.StateAPI, chain full.ChainAPI, mpool full.MpoolAPI, fundmgr *market.FundManager) storagemarket.StorageClientNode {
-	capi := &clientApi{chain, stateapi}
+	capi := &clientApi{chain, stateapi, mpool}
 	ctx := helpers.LifecycleCtx(mctx, lc)
 
 	ev := events.NewEvents(ctx, capi)
 	a := &ClientNodeAdapter{
-		StateAPI: stateapi,
-		ChainAPI: chain,
-		MpoolAPI: mpool,
+		clientApi: capi,
 
 		fundmgr:   fundmgr,
 		ev:        ev,
