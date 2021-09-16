@@ -192,6 +192,7 @@ func DefaultUpgradeSchedule() UpgradeSchedule {
 			DontStartWithin: 15,
 			StopWithin:      5,
 		}},
+		Expensive: true,
 	}, {
 		Height:    build.UpgradeTokenHeight,
 		Network:   network.Version9,
