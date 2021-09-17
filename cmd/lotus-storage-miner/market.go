@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"errors"
 	"fmt"
+	cborutil "github.com/filecoin-project/go-cbor-util"
 	"io"
 	"os"
 	"path/filepath"
@@ -340,6 +341,7 @@ var storageDealsCmd = &cli.Command{
 		getBlocklistCmd,
 		resetBlocklistCmd,
 		setSealDurationCmd,
+		dealsPendingPublish,
 	},
 }
 
@@ -803,6 +805,63 @@ var transfersListCmd = &cli.Command{
 			}
 		}
 		lcli.OutputDataTransferChannels(os.Stdout, channels, completed, color, showFailed)
+		return nil
+	},
+}
+
+
+var dealsPendingPublish = &cli.Command{
+	Name:  "pending-publish",
+	Usage: "list deals waiting in publish queue",
+	Flags: []cli.Flag{
+		&cli.BoolFlag{
+			Name:  "publish-now",
+			Usage: "send a publish message now",
+		},
+	},
+	Action: func(cctx *cli.Context) error {
+		api, closer, err := lcli.GetStorageMinerAPI(cctx)
+		if err != nil {
+			return err
+		}
+		defer closer()
+		ctx := lcli.ReqContext(cctx)
+
+		if cctx.Bool("publish-now") {
+			if err := api.MarketPublishPendingDeals(ctx); err != nil {
+				return xerrors.Errorf("publishing deals: %w", err)
+			}
+			fmt.Println("triggered deal publishing")
+			return nil
+		}
+
+		pending, err := api.MarketPendingDeals(ctx)
+		if err != nil {
+			return xerrors.Errorf("getting pending deals: %w", err)
+		}
+
+		w := tabwriter.NewWriter(os.Stdout, 2, 4, 2, ' ', 0)
+		_, _ = fmt.Fprintf(w, "ProposalCID\tClient\tSize\n")
+
+		if len(pending.Deals) > 0 {
+			endsIn := pending.PublishPeriodStart.Add(pending.PublishPeriod).Sub(time.Now())
+			w := tabwriter.NewWriter(os.Stdout, 2, 4, 2, ' ', 0)
+			_, _ = fmt.Fprintf(w, "Publish period:             %s (ends in %s)\n", pending.PublishPeriod, endsIn.Round(time.Second))
+			_, _ = fmt.Fprintf(w, "First deal queued at:       %s\n", pending.PublishPeriodStart)
+			_, _ = fmt.Fprintf(w, "Deals will be published at: %s\n", pending.PublishPeriodStart.Add(pending.PublishPeriod))
+			_, _ = fmt.Fprintf(w, "%d deals queued to be published:\n", len(pending.Deals))
+			_, _ = fmt.Fprintf(w, "ProposalCID\tClient\tSize\n")
+			for _, deal := range pending.Deals {
+				proposalNd, err := cborutil.AsIpld(&deal) // nolint
+				if err != nil {
+					return err
+				}
+				_, _ = fmt.Fprintf(w, "%s\t%s\t%s\n", proposalNd.Cid(), deal.Proposal.Client, units.BytesSize(float64(deal.Proposal.PieceSize)))
+			}
+			return w.Flush()
+		}
+
+		fmt.Println("No deals queued to be published")
 		return nil
 	},
 }

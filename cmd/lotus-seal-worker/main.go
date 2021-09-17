@@ -307,7 +307,7 @@ var runCmd = &cli.Command{
 
 			{
 				// init datastore for r.Exists
-				_, err := lr.Datastore("/metadata")
+				_, err := lr.Datastore(context.Background(), "/metadata")
 				if err != nil {
 					return err
 				}
@@ -326,7 +326,7 @@ var runCmd = &cli.Command{
 				log.Error("closing repo", err)
 			}
 		}()
-		ds, err := lr.Datastore("/metadata")
+		ds, err := lr.Datastore(context.Background(), "/metadata")
 		if err != nil {
 			return err
 		}

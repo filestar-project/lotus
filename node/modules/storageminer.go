@@ -10,6 +10,8 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/filecoin-project/lotus/chain/actors/builtin/miner"
+
 	"go.uber.org/fx"
 	"go.uber.org/multierr"
 	"golang.org/x/xerrors"
@@ -66,7 +68,7 @@ import (
 	"github.com/filecoin-project/lotus/markets"
 	marketevents "github.com/filecoin-project/lotus/markets/loggers"
 	"github.com/filecoin-project/lotus/markets/retrievaladapter"
-	"github.com/filecoin-project/lotus/miner"
+	lotusminer "github.com/filecoin-project/lotus/miner"
 	"github.com/filecoin-project/lotus/node/config"
 	"github.com/filecoin-project/lotus/node/modules/dtypes"
 	"github.com/filecoin-project/lotus/node/modules/helpers"
@@ -128,7 +130,11 @@ func SealProofType(maddr dtypes.MinerAddress, fnapi lapi.FullNode) (abi.Register
 		return 0, err
 	}
 
-	return mi.SealProofType, nil
+	networkVersion, err := fnapi.StateNetworkVersion(context.TODO(), types.EmptyTSK)
+	if err != nil {
+		return 0, err
+	}
+	return miner.PreferredSealProofTypeFromWindowPoStType(networkVersion, mi.WindowPoStProofType)
 }
 
 type sidsc struct {
@@ -145,6 +151,35 @@ func SectorIDCounter(ds dtypes.MetadataDS) sealing.SectorIDCounter {
 	return &sidsc{sc}
 }
 
+func AddressSelector(addrConf *config.MinerAddressConfig) func() (*storage.AddressSelector, error) {
+	return func() (*storage.AddressSelector, error) {
+		as := &storage.AddressSelector{}
+		if addrConf == nil {
+			return as, nil
+		}
+
+		for _, s := range addrConf.PreCommitControl {
+			addr, err := address.NewFromString(s)
+			if err != nil {
+				return nil, xerrors.Errorf("parsing precommit control address: %w", err)
+			}
+
+			as.PreCommitControl = append(as.PreCommitControl, addr)
+		}
+
+		for _, s := range addrConf.CommitControl {
+			addr, err := address.NewFromString(s)
+			if err != nil {
+				return nil, xerrors.Errorf("parsing commit control address: %w", err)
+			}
+
+			as.CommitControl = append(as.CommitControl, addr)
+		}
+
+		return as, nil
+	}
+}
+
 type StorageMinerParams struct {
 	fx.In
 
@@ -158,6 +193,7 @@ type StorageMinerParams struct {
 	Verifier           ffiwrapper.Verifier
 	GetSealingConfigFn dtypes.GetSealingConfigFunc
 	Journal            journal.Journal
+	AddrSel            *storage.AddressSelector
 }
 
 func StorageMiner(fc config.MinerFeeConfig) func(params StorageMinerParams) (*storage.Miner, error) {
@@ -173,6 +209,7 @@ func StorageMiner(fc config.MinerFeeConfig) func(params StorageMinerParams) (*st
 			verif  = params.Verifier
 			gsd    = params.GetSealingConfigFn
 			j      = params.Journal
+			as     = params.AddrSel
 		)
 
 		maddr, err := minerAddrFromDS(ds)
@@ -182,12 +219,12 @@ func StorageMiner(fc config.MinerFeeConfig) func(params StorageMinerParams) (*st
 
 		ctx := helpers.LifecycleCtx(mctx, lc)
 
-		fps, err := storage.NewWindowedPoStScheduler(api, fc, sealer, verif, sealer, j, maddr)
+		fps, err := storage.NewWindowedPoStScheduler(api, fc, as, sealer, verif, sealer, j, maddr)
 		if err != nil {
 			return nil, err
 		}
 
-		sm, err := storage.NewMiner(api, maddr, h, ds, sealer, sc, verif, gsd, fc, j)
+		sm, err := storage.NewMiner(api, maddr, h, ds, sealer, sc, verif, gsd, fc, j, as)
 		if err != nil {
 			return nil, err
 		}
@@ -325,8 +362,9 @@ func NewProviderPieceStore(lc fx.Lifecycle, ds dtypes.MetadataDS) (dtypes.Provid
 	return ps, nil
 }
 
-func StagingMultiDatastore(lc fx.Lifecycle, r repo.LockedRepo) (dtypes.StagingMultiDstore, error) {
-	ds, err := r.Datastore("/staging")
+func StagingMultiDatastore(lc fx.Lifecycle, mctx helpers.MetricsCtx, r repo.LockedRepo) (dtypes.StagingMultiDstore, error) {
+	ctx := helpers.LifecycleCtx(mctx, lc)
+	ds, err := r.Datastore(ctx, "/staging")
 	if err != nil {
 		return nil, xerrors.Errorf("getting datastore out of reop: %w", err)
 	}
@@ -347,8 +385,9 @@ func StagingMultiDatastore(lc fx.Lifecycle, r repo.LockedRepo) (dtypes.StagingMu
 
 // StagingBlockstore creates a blockstore for staging blocks for a miner
 // in a storage deal, prior to sealing
-func StagingBlockstore(r repo.LockedRepo) (dtypes.StagingBlockstore, error) {
-	stagingds, err := r.Datastore("/staging")
+func StagingBlockstore(lc fx.Lifecycle, mctx helpers.MetricsCtx, r repo.LockedRepo) (dtypes.StagingBlockstore, error) {
+	ctx := helpers.LifecycleCtx(mctx, lc)
+	stagingds, err := r.Datastore(ctx, "/staging")
 	if err != nil {
 		return nil, err
 	}
@@ -387,13 +426,13 @@ func StagingGraphsync(mctx helpers.MetricsCtx, lc fx.Lifecycle, ibs dtypes.Stagi
 	return gs
 }
 
-func SetupBlockProducer(lc fx.Lifecycle, ds dtypes.MetadataDS, api lapi.FullNode, epp gen.WinningPoStProver, sf *slashfilter.SlashFilter, j journal.Journal) (*miner.Miner, error) {
+func SetupBlockProducer(lc fx.Lifecycle, ds dtypes.MetadataDS, api lapi.FullNode, epp gen.WinningPoStProver, sf *slashfilter.SlashFilter, j journal.Journal) (*lotusminer.Miner, error) {
 	minerAddr, err := minerAddrFromDS(ds)
 	if err != nil {
 		return nil, err
 	}
 
-	m := miner.NewMiner(api, epp, minerAddr, sf, j)
+	m := lotusminer.NewMiner(api, epp, minerAddr, sf, j)
 
 	lc.Append(fx.Hook{
 		OnStart: func(ctx context.Context) error {
@@ -528,7 +567,6 @@ func BasicDealFilter(user dtypes.StorageDealFilter) func(onlineOk dtypes.Conside
 }
 
 func StorageProvider(minerAddress dtypes.MinerAddress,
-	spt abi.RegisteredSealProof,
 	storedAsk *storedask.StoredAsk,
 	h host.Host, ds dtypes.MetadataDS,
 	mds dtypes.StagingMultiDstore,
@@ -546,7 +584,7 @@ func StorageProvider(minerAddress dtypes.MinerAddress,
 
 	opt := storageimpl.CustomDealDecisionLogic(storageimpl.DealDeciderFunc(df))
 
-	return storageimpl.NewProvider(net, namespace.Wrap(ds, datastore.NewKey("/deals/provider")), store, mds, pieceStore, dataTransfer, spn, address.Address(minerAddress), spt, storedAsk, opt)
+	return storageimpl.NewProvider(net, namespace.Wrap(ds, datastore.NewKey("/deals/provider")), store, mds, pieceStore, dataTransfer, spn, address.Address(minerAddress), storedAsk, opt)
 }
 
 func RetrievalDealFilter(userFilter dtypes.RetrievalDealFilter) func(onlineOk dtypes.ConsiderOnlineRetrievalDealsConfigFunc,

@@ -458,7 +458,7 @@ var provingCheckProvableCmd = &cli.Command{
 				})
 			}
 
-			bad, err := sapi.CheckProvable(ctx, abi.SealProofInfos[info.SealProofType].WindowPoStProof, tocheck, cctx.Bool("slow"))
+			bad, err := sapi.CheckProvable(ctx, info.WindowPoStProofType, tocheck, cctx.Bool("slow"))
 			if err != nil {
 				return err
 			}

@@ -57,6 +57,7 @@ const GenesisPreseals = 2
 // Options for setting up a mock storage miner
 type StorageMiner struct {
 	Full    int
+	Opts    node.Option
 	Preseal int
 }
 
@@ -109,14 +110,19 @@ var OneMiner = []StorageMiner{{Full: 0, Preseal: PresealGenesis}}
 var OneFull = DefaultFullOpts(1)
 var TwoFull = DefaultFullOpts(2)
 
-var FullNodeWithUpgradeAt = func(upgradeHeight abi.ChainEpoch) FullNodeOpts {
+var FullNodeWithActorsV3At = func(upgradeHeight abi.ChainEpoch) FullNodeOpts {
 	return FullNodeOpts{
 		Opts: func(nodes []TestNode) node.Option {
 			return node.Override(new(stmgr.UpgradeSchedule), stmgr.UpgradeSchedule{{
-				// Skip directly to tape height so precommits work.
-				Network:   network.Version5,
-				Height:    upgradeHeight,
+				// prepare for upgrade.
+				Network:   network.Version8,
+				Height:    1,
 				Migration: stmgr.UpgradeActorsV2,
+			}, {
+				// Skip directly to tape height so precommits work.
+				Network:   network.Version9,
+				Height:    upgradeHeight,
+				Migration: stmgr.UpgradeActorsV3,
 			}})
 		},
 	}

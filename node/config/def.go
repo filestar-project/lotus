@@ -41,6 +41,7 @@ type StorageMiner struct {
 	Sealing    SealingConfig
 	Storage    sectorstorage.SealerConfig
 	Fees       MinerFeeConfig
+	Addresses  MinerAddressConfig
 }
 
 type DealmakingConfig struct {
@@ -52,6 +53,12 @@ type DealmakingConfig struct {
 	ConsiderUnverifiedStorageDeals bool
 	PieceCidBlocklist              []cid.Cid
 	ExpectedSealDuration           Duration
+	// The amount of time to wait for more deals to arrive before
+	// publishing
+	PublishMsgPeriod Duration
+	// The maximum number of deals to include in a single PublishStorageDeals
+	// message
+	MaxDealsPerPublishMsg uint64
 
 	Filter          string
 	RetrievalFilter string
@@ -78,6 +85,11 @@ type MinerFeeConfig struct {
 	MaxWindowPoStGasFee    types.FIL
 	MaxPublishDealsFee     types.FIL
 	MaxMarketBalanceAddFee types.FIL
+}
+
+type MinerAddressConfig struct {
+	PreCommitControl []string
+	CommitControl    []string
 }
 
 // API contains configs for API endpoint
@@ -118,6 +130,7 @@ type Client struct {
 	IpfsOnlineMode      bool
 	IpfsMAddr           string
 	IpfsUseForRetrieval bool
+	SimultaneousTransfers uint64
 }
 
 type Wallet struct {
@@ -203,7 +216,9 @@ func DefaultStorageMiner() *StorageMiner {
 			ConsiderUnverifiedStorageDeals: true,
 			PieceCidBlocklist:              []cid.Cid{},
 			// TODO: It'd be nice to set this based on sector size
-			ExpectedSealDuration: Duration(time.Hour * 24),
+			ExpectedSealDuration:  Duration(time.Hour * 24),
+			PublishMsgPeriod:      Duration(time.Hour),
+			MaxDealsPerPublishMsg: 8,
 		},
 
 		Fees: MinerFeeConfig{
@@ -212,6 +227,11 @@ func DefaultStorageMiner() *StorageMiner {
 			MaxWindowPoStGasFee:    types.MustParseFIL("5"),
 			MaxPublishDealsFee:     types.MustParseFIL("0.05"),
 			MaxMarketBalanceAddFee: types.MustParseFIL("0.007"),
+		},
+
+		Addresses: MinerAddressConfig{
+			PreCommitControl: []string{},
+			CommitControl:    []string{},
 		},
 	}
 	cfg.Common.API.ListenAddress = "/ip4/127.0.0.1/tcp/2345/http"

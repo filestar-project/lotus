@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"fmt"
+	"github.com/filecoin-project/lotus/chain/actors/builtin/miner"
 	"io"
 	"os"
 
@@ -33,9 +34,9 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/filecoin-project/go-address"
+	"github.com/filecoin-project/go-commp-utils/ffiwrapper"
 	datatransfer "github.com/filecoin-project/go-data-transfer"
 	"github.com/filecoin-project/go-fil-markets/discovery"
-	"github.com/filecoin-project/go-fil-markets/pieceio"
 	"github.com/filecoin-project/go-fil-markets/retrievalmarket"
 	rm "github.com/filecoin-project/go-fil-markets/retrievalmarket"
 	"github.com/filecoin-project/go-fil-markets/shared"
@@ -157,6 +158,16 @@ func (a *API) ClientStartDeal(ctx context.Context, params *api.StartDealParams) 
 		dealStart = ts.Height() + abi.ChainEpoch(dealStartBufferHours*blocksPerHour) // TODO: Get this from storage ask
 	}
 
+	networkVersion, err := a.StateNetworkVersion(ctx, types.EmptyTSK)
+	if err != nil {
+		return nil, xerrors.Errorf("failed to get network version: %w", err)
+	}
+
+	st, err := miner.PreferredSealProofTypeFromWindowPoStType(networkVersion, mi.WindowPoStProofType)
+	if err != nil {
+		return nil, xerrors.Errorf("failed to get seal proof type: %w", err)
+	}
+
 	result, err := a.SMDealClient.ProposeStorageDeal(ctx, storagemarket.ProposeStorageDealParams{
 		Addr:          params.Wallet,
 		Info:          &providerInfo,
@@ -165,7 +176,7 @@ func (a *API) ClientStartDeal(ctx context.Context, params *api.StartDealParams) 
 		EndEpoch:      calcDealExpiration(params.MinBlocksDuration, md, dealStart),
 		Price:         params.EpochPrice,
 		Collateral:    params.ProviderCollateral,
-		Rt:            mi.SealProofType,
+		Rt:            st,
 		FastRetrieval: params.FastRetrieval,
 		VerifiedDeal:  params.VerifiedDeal,
 		StoreID:       storeID,
@@ -662,7 +673,18 @@ func (a *API) ClientCalcCommP(ctx context.Context, inpath string) (*api.CommPRet
 		return nil, err
 	}
 
-	commP, pieceSize, err := pieceio.GeneratePieceCommitment(arbitraryProofType, rdr, uint64(stat.Size()))
+	// check that the data is a car file; if it's not, retrieval won't work
+	_, _, err = car.ReadHeader(bufio.NewReader(rdr))
+	if err != nil {
+		return nil, xerrors.Errorf("not a car file: %w", err)
+	}
+
+	if _, err := rdr.Seek(0, io.SeekStart); err != nil {
+		return nil, xerrors.Errorf("seek to start: %w", err)
+	}
+
+	pieceReader, pieceSize := padreader.New(rdr, uint64(stat.Size()))
+	commP, err := ffiwrapper.GeneratePieceCIDFromFile(arbitraryProofType, pieceReader, pieceSize)
 
 	if err != nil {
 		return nil, xerrors.Errorf("computing commP failed: %w", err)

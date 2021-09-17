@@ -3,6 +3,7 @@ package impl
 import (
 	"context"
 	"encoding/json"
+	"github.com/filecoin-project/lotus/markets/storageadapter"
 	"net/http"
 	"os"
 	"strconv"
@@ -55,8 +56,10 @@ type StorageMinerAPI struct {
 	IStorageMgr       sectorstorage.SectorManager
 	*stores.Index
 	storiface.WorkerReturn
-	DataTransfer dtypes.ProviderDataTransfer
-	Host         host.Host
+	DataTransfer  dtypes.ProviderDataTransfer
+	Host          host.Host
+	AddrSel       *storage.AddressSelector
+	DealPublisher *storageadapter.DealPublisher
 
 	DS dtypes.MetadataDS
 
@@ -488,6 +491,15 @@ func (sm *StorageMinerAPI) MarketDataTransferUpdates(ctx context.Context) (<-cha
 	return channels, nil
 }
 
+func (sm *StorageMinerAPI) MarketPendingDeals(ctx context.Context) (api.PendingDealInfo, error) {
+	return sm.DealPublisher.PendingDeals(), nil
+}
+
+func (sm *StorageMinerAPI) MarketPublishPendingDeals(ctx context.Context) error {
+	sm.DealPublisher.ForcePublishPendingDeals()
+	return nil
+}
+
 func (sm *StorageMinerAPI) DealsList(ctx context.Context) ([]api.MarketDeal, error) {
 	return sm.listDeals(ctx)
 }
@@ -634,6 +646,10 @@ func (sm *StorageMinerAPI) CheckProvable(ctx context.Context, pp abi.RegisteredP
 	}
 
 	return out, nil
+}
+
+func (sm *StorageMinerAPI) ActorAddressConfig(ctx context.Context) (api.AddressConfig, error) {
+	return sm.AddrSel.AddressConfig, nil
 }
 
 var _ api.StorageMiner = &StorageMinerAPI{}

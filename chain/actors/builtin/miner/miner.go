@@ -2,6 +2,9 @@ package miner
 
 import (
 	"github.com/filecoin-project/go-state-types/big"
+	"github.com/filecoin-project/go-state-types/network"
+	miner2 "github.com/filecoin-project/specs-actors/v2/actors/builtin/miner"
+	builtin3 "github.com/filecoin-project/specs-actors/v3/actors/builtin"
 	"github.com/ipfs/go-cid"
 	"github.com/libp2p/go-libp2p-core/peer"
 	cbg "github.com/whyrusleeping/cbor-gen"
@@ -29,11 +32,14 @@ func init() {
 	builtin.RegisterActorState(builtin2.StorageMinerActorCodeID, func(store adt.Store, root cid.Cid) (cbor.Marshaler, error) {
 		return load2(store, root)
 	})
+	builtin.RegisterActorState(builtin3.StorageMinerActorCodeID, func(store adt.Store, root cid.Cid) (cbor.Marshaler, error) {
+		return load3(store, root)
+	})
 }
 
 var Methods = builtin2.MethodsMiner
 
-// Unchanged between v0 and v2 actors
+// Unchanged between v0, v2 and v3 actors
 var WPoStProvingPeriod = miner0.WPoStProvingPeriod
 var WPoStPeriodDeadlines = miner0.WPoStPeriodDeadlines
 var WPoStChallengeWindow = miner0.WPoStChallengeWindow
@@ -42,12 +48,18 @@ var FaultDeclarationCutoff = miner0.FaultDeclarationCutoff
 
 const MinSectorExpiration = miner0.MinSectorExpiration
 
+// Not used / checked in v0
+var DeclarationsMax = miner2.DeclarationsMax
+var AddressedSectorsMax = miner2.AddressedSectorsMax
+
 func Load(store adt.Store, act *types.Actor) (st State, err error) {
 	switch act.Code {
 	case builtin0.StorageMinerActorCodeID:
 		return load0(store, act.Head)
 	case builtin2.StorageMinerActorCodeID:
 		return load2(store, act.Head)
+	case builtin3.StorageMinerActorCodeID:
+		return load3(store, act.Head)
 	}
 	return nil, xerrors.Errorf("unknown actor code %s", act.Code)
 }
@@ -92,7 +104,7 @@ type State interface {
 type Deadline interface {
 	LoadPartition(idx uint64) (Partition, error)
 	ForEachPartition(cb func(idx uint64, part Partition) error) error
-	PostSubmissions() (bitfield.BitField, error)
+	PartitionsPoSted() (bitfield.BitField, error)
 
 	PartitionsChanged(Deadline) (bool, error)
 }
@@ -139,6 +151,80 @@ type DeclareFaultsRecoveredParams = miner0.DeclareFaultsRecoveredParams
 type SubmitWindowedPoStParams = miner0.SubmitWindowedPoStParams
 type ProveCommitSectorParams = miner0.ProveCommitSectorParams
 
+func PreferredSealProofTypeFromWindowPoStType(nver network.Version, proof abi.RegisteredPoStProof) (abi.RegisteredSealProof, error) {
+	// We added support for the new proofs in network version 7, and removed support for the old
+	// ones in network version 8.
+	if nver < network.Version7 {
+		switch proof {
+		case abi.RegisteredPoStProof_StackedDrgWindow2KiBV1:
+			return abi.RegisteredSealProof_StackedDrg2KiBV1, nil
+		case abi.RegisteredPoStProof_StackedDrgWindow8MiBV1:
+			return abi.RegisteredSealProof_StackedDrg8MiBV1, nil
+		case abi.RegisteredPoStProof_StackedDrgWindow512MiBV1:
+			return abi.RegisteredSealProof_StackedDrg512MiBV1, nil
+		case abi.RegisteredPoStProof_StackedDrgWindow32GiBV1:
+			return abi.RegisteredSealProof_StackedDrg32GiBV1, nil
+		case abi.RegisteredPoStProof_StackedDrgWindow64GiBV1:
+			return abi.RegisteredSealProof_StackedDrg64GiBV1, nil
+		default:
+			return -1, xerrors.Errorf("unrecognized window post type: %d", proof)
+		}
+	}
+
+	switch proof {
+	case abi.RegisteredPoStProof_StackedDrgWindow2KiBV1:
+		return abi.RegisteredSealProof_StackedDrg2KiBV1, nil
+	case abi.RegisteredPoStProof_StackedDrgWindow8MiBV1:
+		return abi.RegisteredSealProof_StackedDrg8MiBV1, nil
+	case abi.RegisteredPoStProof_StackedDrgWindow512MiBV1:
+		return abi.RegisteredSealProof_StackedDrg512MiBV1, nil
+	case abi.RegisteredPoStProof_StackedDrgWindow8GiBV1:
+		return abi.RegisteredSealProof_StackedDrg8GiBV1, nil
+	case abi.RegisteredPoStProof_StackedDrgWindow32GiBV1:
+		return abi.RegisteredSealProof_StackedDrg32GiBV1, nil
+	case abi.RegisteredPoStProof_StackedDrgWindow64GiBV1:
+		return abi.RegisteredSealProof_StackedDrg64GiBV1, nil
+	default:
+		return -1, xerrors.Errorf("unrecognized window post type: %d", proof)
+	}
+}
+
+func WinningPoStProofTypeFromWindowPoStProofType(nver network.Version, proof abi.RegisteredPoStProof) (abi.RegisteredPoStProof, error) {
+	if nver < network.Version7 {
+		switch proof {
+		case abi.RegisteredPoStProof_StackedDrgWindow2KiBV1:
+			return abi.RegisteredPoStProof_StackedDrgWinning2KiBV1, nil
+		case abi.RegisteredPoStProof_StackedDrgWindow8MiBV1:
+			return abi.RegisteredPoStProof_StackedDrgWinning8MiBV1, nil
+		case abi.RegisteredPoStProof_StackedDrgWindow512MiBV1:
+			return abi.RegisteredPoStProof_StackedDrgWinning512MiBV1, nil
+		case abi.RegisteredPoStProof_StackedDrgWindow32GiBV1:
+			return abi.RegisteredPoStProof_StackedDrgWinning32GiBV1, nil
+		case abi.RegisteredPoStProof_StackedDrgWindow64GiBV1:
+			return abi.RegisteredPoStProof_StackedDrgWinning64GiBV1, nil
+		default:
+			return -1, xerrors.Errorf("unknown proof type %d", proof)
+		}
+	}
+
+	switch proof {
+	case abi.RegisteredPoStProof_StackedDrgWindow2KiBV1:
+		return abi.RegisteredPoStProof_StackedDrgWinning2KiBV1, nil
+	case abi.RegisteredPoStProof_StackedDrgWindow8MiBV1:
+		return abi.RegisteredPoStProof_StackedDrgWinning8MiBV1, nil
+	case abi.RegisteredPoStProof_StackedDrgWindow512MiBV1:
+		return abi.RegisteredPoStProof_StackedDrgWinning512MiBV1, nil
+	case abi.RegisteredPoStProof_StackedDrgWindow8GiBV1:
+		return abi.RegisteredPoStProof_StackedDrgWinning8GiBV1, nil
+	case abi.RegisteredPoStProof_StackedDrgWindow32GiBV1:
+		return abi.RegisteredPoStProof_StackedDrgWinning32GiBV1, nil
+	case abi.RegisteredPoStProof_StackedDrgWindow64GiBV1:
+		return abi.RegisteredPoStProof_StackedDrgWinning64GiBV1, nil
+	default:
+		return -1, xerrors.Errorf("unknown proof type %d", proof)
+	}
+}
+
 type MinerInfo struct {
 	Owner                      address.Address   // Must be an ID-address.
 	Worker                     address.Address   // Must be an ID-address.
@@ -147,7 +233,7 @@ type MinerInfo struct {
 	WorkerChangeEpoch          abi.ChainEpoch
 	PeerId                     *peer.ID
 	Multiaddrs                 []abi.Multiaddrs
-	SealProofType              abi.RegisteredSealProof
+	WindowPoStProofType        abi.RegisteredPoStProof
 	SectorSize                 abi.SectorSize
 	WindowPoStPartitionSectors uint64
 	ConsensusFaultElapsed      abi.ChainEpoch

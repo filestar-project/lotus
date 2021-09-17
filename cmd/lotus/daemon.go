@@ -227,7 +227,7 @@ var DaemonCmd = &cli.Command{
 				issnapshot = true
 			}
 
-			if err := ImportChain(r, chainfile, issnapshot); err != nil {
+			if err := ImportChain(ctx, r, chainfile, issnapshot); err != nil {
 				return err
 			}
 			if cctx.Bool("halt-after-import") {
@@ -363,7 +363,7 @@ func importKey(ctx context.Context, api api.FullNode, f string) error {
 	return nil
 }
 
-func ImportChain(r repo.Repo, fname string, snapshot bool) (err error) {
+func ImportChain(ctx context.Context, r repo.Repo, fname string, snapshot bool) (err error) {
 	var rd io.Reader
 	var l int64
 	if strings.HasPrefix(fname, "http://") || strings.HasPrefix(fname, "https://") {
@@ -406,12 +406,12 @@ func ImportChain(r repo.Repo, fname string, snapshot bool) (err error) {
 	}
 	defer lr.Close() //nolint:errcheck
 
-	bs, err := lr.Blockstore(repo.BlockstoreChain)
+	bs, err := lr.Blockstore(ctx, repo.BlockstoreChain)
 	if err != nil {
 		return xerrors.Errorf("failed to open blockstore: %w", err)
 	}
 
-	mds, err := lr.Datastore("/metadata")
+	mds, err := lr.Datastore(context.TODO(), "/metadata")
 	if err != nil {
 		return err
 	}

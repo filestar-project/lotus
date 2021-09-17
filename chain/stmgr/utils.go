@@ -25,6 +25,7 @@ import (
 
 	exported0 "github.com/filecoin-project/specs-actors/actors/builtin/exported"
 	exported2 "github.com/filecoin-project/specs-actors/v2/actors/builtin/exported"
+	exported3 "github.com/filecoin-project/specs-actors/v3/actors/builtin/exported"
 
 	"github.com/filecoin-project/lotus/api"
 	"github.com/filecoin-project/lotus/chain/actors/builtin"
@@ -144,21 +145,7 @@ func MinerSectorInfo(ctx context.Context, sm *StateManager, maddr address.Addres
 	return mas.GetSector(sid)
 }
 
-func GetMinerSectorSet(ctx context.Context, sm *StateManager, ts *types.TipSet, maddr address.Address, snos *bitfield.BitField) ([]*miner.SectorOnChainInfo, error) {
-	act, err := sm.LoadActor(ctx, maddr, ts)
-	if err != nil {
-		return nil, xerrors.Errorf("(get sset) failed to load miner actor: %w", err)
-	}
-
-	mas, err := miner.Load(sm.cs.Store(ctx), act)
-	if err != nil {
-		return nil, xerrors.Errorf("(get sset) failed to load miner actor state: %w", err)
-	}
-
-	return mas.LoadSectors(snos)
-}
-
-func GetSectorsForWinningPoSt(ctx context.Context, pv ffiwrapper.Verifier, sm *StateManager, st cid.Cid, maddr address.Address, rand abi.PoStRandomness) ([]builtin.SectorInfo, error) {
+func GetSectorsForWinningPoSt(ctx context.Context, nv network.Version, pv ffiwrapper.Verifier, sm *StateManager, st cid.Cid, maddr address.Address, rand abi.PoStRandomness) ([]builtin.SectorInfo, error) {
 	act, err := sm.LoadActorRaw(ctx, maddr, st)
 	if err != nil {
 		return nil, xerrors.Errorf("failed to load miner actor: %w", err)
@@ -201,17 +188,17 @@ func GetSectorsForWinningPoSt(ctx context.Context, pv ffiwrapper.Verifier, sm *S
 		return nil, xerrors.Errorf("getting miner info: %w", err)
 	}
 
-	wpt, err := info.SealProofType.RegisteredWinningPoStProof()
-	if err != nil {
-		return nil, xerrors.Errorf("getting window proof type: %w", err)
-	}
-
 	mid, err := address.IDFromAddress(maddr)
 	if err != nil {
 		return nil, xerrors.Errorf("getting miner ID: %w", err)
 	}
 
-	ids, err := pv.GenerateWinningPoStSectorChallenge(ctx, wpt, abi.ActorID(mid), rand, numProvSect)
+	proofType, err := miner.WinningPoStProofTypeFromWindowPoStProofType(nv, info.WindowPoStProofType)
+	if err != nil {
+		return nil, xerrors.Errorf("determining winning post proof type: %w", err)
+	}
+
+	ids, err := pv.GenerateWinningPoStSectorChallenge(ctx, proofType, abi.ActorID(mid), rand, numProvSect)
 	if err != nil {
 		return nil, xerrors.Errorf("generating winning post challenges: %w", err)
 	}
@@ -492,7 +479,9 @@ func MinerGetBaseInfo(ctx context.Context, sm *StateManager, bcs beacon.Schedule
 		return nil, xerrors.Errorf("failed to get randomness for winning post: %w", err)
 	}
 
-	sectors, err := GetSectorsForWinningPoSt(ctx, pv, sm, lbst, maddr, prand)
+	nv := sm.GetNtwkVersion(ctx, ts.Height())
+
+	sectors, err := GetSectorsForWinningPoSt(ctx, nv, pv, sm, lbst, maddr, prand)
 	if err != nil {
 		return nil, xerrors.Errorf("getting winning post proving set: %w", err)
 	}
@@ -548,6 +537,7 @@ func init() {
 	var actors []rt.VMActor
 	actors = append(actors, exported0.BuiltinActors()...)
 	actors = append(actors, exported2.BuiltinActors()...)
+	actors = append(actors, exported3.BuiltinActors()...)
 
 	for _, actor := range actors {
 		exports := actor.Exports()

@@ -2,6 +2,9 @@ package vm
 
 import (
 	"context"
+	"github.com/filecoin-project/go-state-types/network"
+
+	"github.com/filecoin-project/lotus/build"
 
 	"github.com/filecoin-project/go-state-types/big"
 	"github.com/filecoin-project/go-state-types/exitcode"
@@ -12,6 +15,7 @@ import (
 
 	builtin0 "github.com/filecoin-project/specs-actors/actors/builtin"
 	builtin2 "github.com/filecoin-project/specs-actors/v2/actors/builtin"
+	builtin3 "github.com/filecoin-project/specs-actors/v3/actors/builtin"
 
 	"github.com/filecoin-project/go-address"
 	"github.com/filecoin-project/lotus/chain/actors/aerrors"
@@ -36,6 +40,10 @@ var EmptyObjectCid cid.Cid
 func TryCreateAccountActor(rt *Runtime, addr address.Address) (*types.Actor, address.Address, aerrors.ActorError) {
 	if err := rt.chargeGasSafe(PricelistByEpoch(rt.height).OnCreateActor()); err != nil {
 		return nil, address.Undef, err
+	}
+
+	if addr == build.ZeroAddress && rt.NetworkVersion() >= network.Version9 {
+		return nil, address.Undef, aerrors.New(exitcode.ErrIllegalArgument, "cannot create the zero bls actor")
 	}
 
 	addrID, err := rt.state.RegisterNewAddress(addr)
@@ -91,6 +99,8 @@ func newAccountActor(ver actors.Version) *types.Actor {
 		code = builtin0.AccountActorCodeID
 	case actors.Version2:
 		code = builtin2.AccountActorCodeID
+	case actors.Version3:
+		code = builtin3.AccountActorCodeID
 	default:
 		panic("unsupported actors version")
 	}

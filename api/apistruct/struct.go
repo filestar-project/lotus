@@ -3,6 +3,7 @@ package apistruct
 import (
 	"context"
 	"github.com/filecoin-project/lotus/chain/actors/builtin/stake"
+	"github.com/filecoin-project/lotus/chain/actors/builtin/token"
 	"io"
 	"time"
 
@@ -237,6 +238,17 @@ type FullNodeStruct struct {
 		StateStakerVestingReward       func(context.Context, address.Address, types.TipSetKey) (abi.TokenAmount, error)         `perm:"read"`
 		StateStakerAvailableReward     func(context.Context, address.Address, types.TipSetKey) (abi.TokenAmount, error)         `perm:"read"`
 
+		StateTokenInfo                      func(context.Context, types.TipSetKey) (*token.TokenStateInfo, error)                            `perm:"read"`
+		StateTokenCreators                  func(context.Context, types.TipSetKey) ([]address.Address, error)                                `perm:"read"`
+		StateTokenCreatorByTokenID          func(context.Context, big.Int, types.TipSetKey) (address.Address, error)                         `perm:"read"`
+		StateTokenIDsByCreator              func(context.Context, address.Address, types.TipSetKey) ([]big.Int, error)                       `perm:"read"`
+		StateTokenURIByTokenID              func(context.Context, big.Int, types.TipSetKey) (string, error)                                  `perm:"read"`
+		StateTokenBalanceByTokenID          func(context.Context, big.Int, types.TipSetKey) ([]*token.TokenBalanceInfoByTokenID, error)      `perm:"read"`
+		StateTokenBalanceByAddr             func(context.Context, address.Address, types.TipSetKey) ([]*token.TokenBalanceInfoByAddr, error) `perm:"read"`
+		StateTokenBalanceByTokenIDAndAddr   func(context.Context, big.Int, address.Address, types.TipSetKey) (abi.TokenAmount, error)        `perm:"read"`
+		StateTokenBalanceByTokenIDsAndAddrs func(context.Context, []big.Int, []address.Address, types.TipSetKey) ([]abi.TokenAmount, error)  `perm:"read"`
+		StateTokenIsAllApproved             func(context.Context, address.Address, address.Address, types.TipSetKey) (bool, error)           `perm:"read"`
+
 		MsigGetAvailableBalance func(context.Context, address.Address, types.TipSetKey) (types.BigInt, error)                                                                    `perm:"read"`
 		MsigGetVestingSchedule  func(context.Context, address.Address, types.TipSetKey) (api.MsigVesting, error)                                                                 `perm:"read"`
 		MsigGetVested           func(context.Context, address.Address, types.TipSetKey, types.TipSetKey) (types.BigInt, error)                                                   `perm:"read"`
@@ -290,6 +302,7 @@ type StorageMinerStruct struct {
 	Internal struct {
 		ActorAddress    func(context.Context) (address.Address, error)                 `perm:"read"`
 		ActorSectorSize func(context.Context, address.Address) (abi.SectorSize, error) `perm:"read"`
+		ActorAddressConfig func(ctx context.Context) (api.AddressConfig, error)           `perm:"read"`
 
 		MiningBase func(context.Context) (*types.TipSet, error) `perm:"read"`
 
@@ -306,6 +319,8 @@ type StorageMinerStruct struct {
 		MarketDataTransferUpdates func(ctx context.Context) (<-chan api.DataTransferChannel, error)                                                                                                            `perm:"write"`
 		MarketRestartDataTransfer func(ctx context.Context, transferID datatransfer.TransferID, otherPeer peer.ID, isInitiator bool) error                                                                     `perm:"read"`
 		MarketCancelDataTransfer  func(ctx context.Context, transferID datatransfer.TransferID, otherPeer peer.ID, isInitiator bool) error                                                                     `perm:"read"`
+		MarketPendingDeals        func(ctx context.Context) (api.PendingDealInfo, error)                                                                                                                       `perm:"admin"`
+		MarketPublishPendingDeals func(ctx context.Context) error                                                                                                                                              `perm:"admin"`
 
 		PledgeSector func(context.Context) error `perm:"write"`
 
@@ -447,6 +462,8 @@ type GatewayStruct struct {
 		StateMarketBalance                func(ctx context.Context, addr address.Address, tsk types.TipSetKey) (api.MarketBalance, error)
 		StateMarketStorageDeal            func(ctx context.Context, dealId abi.DealID, tsk types.TipSetKey) (*api.MarketDeal, error)
 		StateNetworkVersion               func(ctx context.Context, tsk types.TipSetKey) (stnetwork.Version, error)
+		StateSearchMsg                    func(ctx context.Context, msg cid.Cid) (*api.MsgLookup, error)
+		StateSectorGetInfo                func(ctx context.Context, maddr address.Address, n abi.SectorNumber, tsk types.TipSetKey) (*miner.SectorOnChainInfo, error)
 		StateVerifiedClientStatus         func(ctx context.Context, addr address.Address, tsk types.TipSetKey) (*abi.StoragePower, error)
 		StateWaitMsg                      func(ctx context.Context, msg cid.Cid, confidence uint64) (*api.MsgLookup, error)
 	}
@@ -1122,6 +1139,45 @@ func (c *FullNodeStruct) StateStakerAvailableReward(ctx context.Context, addr ad
 	return c.Internal.StateStakerAvailableReward(ctx, addr, tsk)
 }
 
+func (c *FullNodeStruct) StateTokenInfo(ctx context.Context, tsk types.TipSetKey) (*token.TokenStateInfo, error) {
+	return c.Internal.StateTokenInfo(ctx, tsk)
+}
+
+func (c *FullNodeStruct) StateTokenCreators(ctx context.Context, tsk types.TipSetKey) ([]address.Address, error) {
+	return c.Internal.StateTokenCreators(ctx, tsk)
+}
+
+func (c *FullNodeStruct) StateTokenCreatorByTokenID(ctx context.Context, tokenID big.Int, tsk types.TipSetKey) (address.Address, error) {
+	return c.Internal.StateTokenCreatorByTokenID(ctx, tokenID, tsk)
+}
+func (c *FullNodeStruct) StateTokenIDsByCreator(ctx context.Context, creator address.Address, tsk types.TipSetKey) ([]big.Int, error) {
+	return c.Internal.StateTokenIDsByCreator(ctx, creator, tsk)
+}
+
+func (c *FullNodeStruct) StateTokenURIByTokenID(ctx context.Context, tokenID big.Int, tsk types.TipSetKey) (string, error) {
+	return c.Internal.StateTokenURIByTokenID(ctx, tokenID, tsk)
+}
+
+func (c *FullNodeStruct) StateTokenBalanceByTokenID(ctx context.Context, tokenID big.Int, tsk types.TipSetKey) ([]*token.TokenBalanceInfoByTokenID, error) {
+	return c.Internal.StateTokenBalanceByTokenID(ctx, tokenID, tsk)
+}
+
+func (c *FullNodeStruct) StateTokenBalanceByAddr(ctx context.Context, owner address.Address, tsk types.TipSetKey) ([]*token.TokenBalanceInfoByAddr, error) {
+	return c.Internal.StateTokenBalanceByAddr(ctx, owner, tsk)
+}
+
+func (c *FullNodeStruct) StateTokenBalanceByTokenIDAndAddr(ctx context.Context, tokenID big.Int, owner address.Address, tsk types.TipSetKey) (abi.TokenAmount, error) {
+	return c.Internal.StateTokenBalanceByTokenIDAndAddr(ctx, tokenID, owner, tsk)
+}
+
+func (c *FullNodeStruct) StateTokenBalanceByTokenIDsAndAddrs(ctx context.Context, tokenIDs []big.Int, owners []address.Address, tsk types.TipSetKey) ([]abi.TokenAmount, error) {
+	return c.Internal.StateTokenBalanceByTokenIDsAndAddrs(ctx, tokenIDs, owners, tsk)
+}
+
+func (c *FullNodeStruct) StateTokenIsAllApproved(ctx context.Context, addrFrom address.Address, addrTo address.Address, tsk types.TipSetKey) (bool, error) {
+	return c.Internal.StateTokenIsAllApproved(ctx, addrFrom, addrTo, tsk)
+}
+
 func (c *FullNodeStruct) MsigGetAvailableBalance(ctx context.Context, a address.Address, tsk types.TipSetKey) (types.BigInt, error) {
 	return c.Internal.MsigGetAvailableBalance(ctx, a, tsk)
 }
@@ -1278,6 +1334,10 @@ func (c *StorageMinerStruct) MiningBase(ctx context.Context) (*types.TipSet, err
 
 func (c *StorageMinerStruct) ActorSectorSize(ctx context.Context, addr address.Address) (abi.SectorSize, error) {
 	return c.Internal.ActorSectorSize(ctx, addr)
+}
+
+func (c *StorageMinerStruct) ActorAddressConfig(ctx context.Context) (api.AddressConfig, error) {
+	return c.Internal.ActorAddressConfig(ctx)
 }
 
 func (c *StorageMinerStruct) PledgeSector(ctx context.Context) error {
@@ -1500,6 +1560,14 @@ func (c *StorageMinerStruct) MarketRestartDataTransfer(ctx context.Context, tran
 
 func (c *StorageMinerStruct) MarketCancelDataTransfer(ctx context.Context, transferID datatransfer.TransferID, otherPeer peer.ID, isInitiator bool) error {
 	return c.Internal.MarketCancelDataTransfer(ctx, transferID, otherPeer, isInitiator)
+}
+
+func (c *StorageMinerStruct) MarketPendingDeals(ctx context.Context) (api.PendingDealInfo, error) {
+	return c.Internal.MarketPendingDeals(ctx)
+}
+
+func (c *StorageMinerStruct) MarketPublishPendingDeals(ctx context.Context) error {
+	return c.Internal.MarketPublishPendingDeals(ctx)
 }
 
 func (c *StorageMinerStruct) DealsImportData(ctx context.Context, dealPropCid cid.Cid, file string) error {
@@ -1778,6 +1846,14 @@ func (g GatewayStruct) StateMinerPower(ctx context.Context, addr address.Address
 
 func (g GatewayStruct) StateNetworkVersion(ctx context.Context, tsk types.TipSetKey) (stnetwork.Version, error) {
 	return g.Internal.StateNetworkVersion(ctx, tsk)
+}
+
+func (g GatewayStruct) StateSearchMsg(ctx context.Context, msg cid.Cid) (*api.MsgLookup, error) {
+	return g.Internal.StateSearchMsg(ctx, msg)
+}
+
+func (g GatewayStruct) StateSectorGetInfo(ctx context.Context, maddr address.Address, n abi.SectorNumber, tsk types.TipSetKey) (*miner.SectorOnChainInfo, error) {
+	return g.Internal.StateSectorGetInfo(ctx, maddr, n, tsk)
 }
 
 func (g GatewayStruct) StateVerifiedClientStatus(ctx context.Context, addr address.Address, tsk types.TipSetKey) (*abi.StoragePower, error) {

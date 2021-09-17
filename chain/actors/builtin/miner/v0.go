@@ -312,6 +312,11 @@ func (s *state0) Info() (MinerInfo, error) {
 		pid = &peerID
 	}
 
+	wpp, err := info.SealProofType.RegisteredWindowPoStProof()
+	if err != nil {
+		return MinerInfo{}, err
+	}
+
 	mi := MinerInfo{
 		Owner:            info.Owner,
 		Worker:           info.Worker,
@@ -322,7 +327,7 @@ func (s *state0) Info() (MinerInfo, error) {
 
 		PeerId:                     pid,
 		Multiaddrs:                 info.Multiaddrs,
-		SealProofType:              info.SealProofType,
+		WindowPoStProofType:        wpp,
 		SectorSize:                 info.SectorSize,
 		WindowPoStPartitionSectors: info.WindowPoStPartitionSectors,
 		ConsensusFaultElapsed:      -1,
@@ -397,7 +402,7 @@ func (d *deadline0) PartitionsChanged(other Deadline) (bool, error) {
 	return !d.Deadline.Partitions.Equals(other0.Deadline.Partitions), nil
 }
 
-func (d *deadline0) PostSubmissions() (bitfield.BitField, error) {
+func (d *deadline0) PartitionsPoSted() (bitfield.BitField, error)  {
 	return d.Deadline.PostSubmissions, nil
 }
 

@@ -48,6 +48,7 @@ type Miner struct {
 	ds     datastore.Batching
 	sc     sealing.SectorIDCounter
 	verif  ffiwrapper.Verifier
+	addrSel *AddressSelector
 
 	maddr address.Address
 
@@ -91,10 +92,13 @@ type storageMinerApi interface {
 	StateMinerRecoveries(context.Context, address.Address, types.TipSetKey) (bitfield.BitField, error)
 	StateAccountKey(context.Context, address.Address, types.TipSetKey) (address.Address, error)
 	StateNetworkVersion(context.Context, types.TipSetKey) (network.Version, error)
+	StateLookupID(context.Context, address.Address, types.TipSetKey) (address.Address, error)
 
 	MpoolPushMessage(context.Context, *types.Message, *api.MessageSendSpec) (*types.SignedMessage, error)
 
 	GasEstimateMessageGas(context.Context, *types.Message, *api.MessageSendSpec, types.TipSetKey) (*types.Message, error)
+	GasEstimateFeeCap(context.Context, *types.Message, int64, types.TipSetKey) (types.BigInt, error)
+	GasEstimateGasPremium(_ context.Context, nblocksincl uint64, sender address.Address, gaslimit int64, tsk types.TipSetKey) (types.BigInt, error)
 
 	ChainHead(context.Context) (*types.TipSet, error)
 	ChainNotify(context.Context) (<-chan []*api.HeadChange, error)
@@ -102,6 +106,7 @@ type storageMinerApi interface {
 	ChainGetRandomnessFromBeacon(ctx context.Context, tsk types.TipSetKey, personalization crypto.DomainSeparationTag, randEpoch abi.ChainEpoch, entropy []byte) (abi.Randomness, error)
 	ChainGetTipSetByHeight(context.Context, abi.ChainEpoch, types.TipSetKey) (*types.TipSet, error)
 	ChainGetBlockMessages(context.Context, cid.Cid) (*api.BlockMessages, error)
+	ChainGetMessage(ctx context.Context, mc cid.Cid) (*types.Message, error)
 	ChainReadObj(context.Context, cid.Cid) ([]byte, error)
 	ChainHasObj(context.Context, cid.Cid) (bool, error)
 	ChainGetTipSet(ctx context.Context, key types.TipSetKey) (*types.TipSet, error)
@@ -111,7 +116,7 @@ type storageMinerApi interface {
 	WalletHas(context.Context, address.Address) (bool, error)
 }
 
-func NewMiner(api storageMinerApi, maddr address.Address, h host.Host, ds datastore.Batching, sealer sectorstorage.SectorManager, sc sealing.SectorIDCounter, verif ffiwrapper.Verifier, gsd dtypes.GetSealingConfigFunc, feeCfg config.MinerFeeConfig, journal journal.Journal) (*Miner, error) {
+func NewMiner(api storageMinerApi, maddr address.Address, h host.Host, ds datastore.Batching, sealer sectorstorage.SectorManager, sc sealing.SectorIDCounter, verif ffiwrapper.Verifier, gsd dtypes.GetSealingConfigFunc, feeCfg config.MinerFeeConfig, journal journal.Journal, as *AddressSelector) (*Miner, error) {
 	m := &Miner{
 		api:    api,
 		feeCfg: feeCfg,
@@ -120,6 +125,7 @@ func NewMiner(api storageMinerApi, maddr address.Address, h host.Host, ds datast
 		ds:     ds,
 		sc:     sc,
 		verif:  verif,
+		addrSel: as,
 
 		maddr:          maddr,
 		getSealConfig:  gsd,
@@ -149,7 +155,11 @@ func (m *Miner) Run(ctx context.Context) error {
 	adaptedAPI := NewSealingAPIAdapter(m.api)
 	// TODO: Maybe we update this policy after actor upgrades?
 	pcp := sealing.NewBasicPreCommitPolicy(adaptedAPI, policy.GetMaxSectorExpirationExtension()-(md.WPoStProvingPeriod*2), md.PeriodStart%md.WPoStProvingPeriod)
-	m.sealing = sealing.New(adaptedAPI, fc, NewEventsAdapter(evts), m.maddr, m.ds, m.sealer, m.sc, m.verif, &pcp, sealing.GetSealingConfigFunc(m.getSealConfig), m.handleSealingNotifications)
+	as := func(ctx context.Context, mi miner.MinerInfo, use api.AddrUse, goodFunds, minFunds abi.TokenAmount) (address.Address, abi.TokenAmount, error) {
+		return m.addrSel.AddressFor(ctx, m.api, mi, use, goodFunds, minFunds)
+	}
+
+	m.sealing = sealing.New(adaptedAPI, fc, NewEventsAdapter(evts), m.maddr, m.ds, m.sealer, m.sc, m.verif, &pcp, sealing.GetSealingConfigFunc(m.getSealConfig), m.handleSealingNotifications, as)
 
 	go m.sealing.Run(ctx) //nolint:errcheck // logged intside the function
 
@@ -214,18 +224,13 @@ func NewWinningPoStProver(api api.FullNode, prover storage.Prover, verifier ffiw
 		return nil, xerrors.Errorf("getting sector size: %w", err)
 	}
 
-	wpt, err := mi.SealProofType.RegisteredWinningPoStProof()
-	if err != nil {
-		return nil, err
-	}
-
 	if build.InsecurePoStValidation {
 		log.Warn("*****************************************************************************")
 		log.Warn(" Generating fake PoSt proof! You should only see this while running tests! ")
 		log.Warn("*****************************************************************************")
 	}
 
-	return &StorageWpp{prover, verifier, abi.ActorID(miner), wpt}, nil
+	return &StorageWpp{prover, verifier, abi.ActorID(miner), mi.WindowPoStProofType}, nil
 }
 
 var _ gen.WinningPoStProver = (*StorageWpp)(nil)

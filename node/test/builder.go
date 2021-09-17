@@ -76,7 +76,7 @@ func CreateTestStorageNode(ctx context.Context, t *testing.T, waddr address.Addr
 	})
 	require.NoError(t, err)
 
-	ds, err := lr.Datastore("/metadata")
+	ds, err := lr.Datastore(context.TODO(), "/metadata")
 	require.NoError(t, err)
 	err = ds.Put(datastore.NewKey("miner-address"), act.Bytes())
 	require.NoError(t, err)
@@ -286,8 +286,11 @@ func mockBuilderOpts(t *testing.T, fullOpts []test.FullNodeOpts, storage []test.
 
 		genMiner := maddrs[i]
 		wa := genms[i].Worker
-
-		storers[i] = CreateTestStorageNode(ctx, t, wa, genMiner, pk, f, mn, node.Options())
+		opts := def.Opts
+		if opts == nil {
+			opts = node.Options()
+		}
+		storers[i] = CreateTestStorageNode(ctx, t, wa, genMiner, pk, f, mn, opts)
 		if err := storers[i].StorageAddLocal(ctx, presealDirs[i]); err != nil {
 			t.Fatalf("%+v", err)
 		}
@@ -451,12 +454,18 @@ func mockSbBuilderOpts(t *testing.T, fullOpts []test.FullNodeOpts, storage []tes
 			}
 		}
 
+		opts := def.Opts
+		if opts == nil {
+			opts = node.Options()
+		}
+
 		storers[i] = CreateTestStorageNode(ctx, t, genms[i].Worker, maddrs[i], pidKeys[i], f, mn, node.Options(
 			node.Override(new(sectorstorage.SectorManager), func() (sectorstorage.SectorManager, error) {
 				return mock.NewMockSectorMgr(sectors), nil
 			}),
 			node.Override(new(ffiwrapper.Verifier), mock.MockVerifier),
 			node.Unset(new(*sectorstorage.Manager)),
+			opts,
 		))
 
 		if rpc {
@@ -487,34 +496,40 @@ func mockSbBuilderOpts(t *testing.T, fullOpts []test.FullNodeOpts, storage []tes
 }
 
 func fullRpc(t *testing.T, nd test.TestNode) test.TestNode {
-	ma, listenAddr, err := CreateRPCServer(nd)
+	ma, listenAddr, err := CreateRPCServer(t, nd)
 	require.NoError(t, err)
 
+	var stop func()
 	var full test.TestNode
-	full.FullNode, _, err = client.NewFullNodeRPC(context.Background(), listenAddr, nil)
+	full.FullNode, stop, err = client.NewFullNodeRPC(context.Background(), listenAddr, nil)
 	require.NoError(t, err)
+	t.Cleanup(stop)
 
 	full.ListenAddr = ma
 	return full
 }
 
 func storerRpc(t *testing.T, nd test.TestStorageNode) test.TestStorageNode {
-	ma, listenAddr, err := CreateRPCServer(nd)
+	ma, listenAddr, err := CreateRPCServer(t, nd)
 	require.NoError(t, err)
 
+	var stop func()
 	var storer test.TestStorageNode
-	storer.StorageMiner, _, err = client.NewStorageMinerRPC(context.Background(), listenAddr, nil)
+	storer.StorageMiner, stop, err = client.NewStorageMinerRPC(context.Background(), listenAddr, nil)
 	require.NoError(t, err)
+	t.Cleanup(stop)
 
 	storer.ListenAddr = ma
 	storer.MineOne = nd.MineOne
 	return storer
 }
 
-func CreateRPCServer(handler interface{}) (multiaddr.Multiaddr, string, error) {
+func CreateRPCServer(t *testing.T, handler interface{}) (multiaddr.Multiaddr, string, error) {
 	rpcServer := jsonrpc.NewServer()
 	rpcServer.Register("Filecoin", handler)
 	testServ := httptest.NewServer(rpcServer) //  todo: close
+	t.Cleanup(testServ.Close)
+	t.Cleanup(testServ.CloseClientConnections)
 
 	addr := testServ.Listener.Addr()
 	listenAddr := "ws://" + addr.String()

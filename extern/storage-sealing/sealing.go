@@ -3,6 +3,8 @@ package sealing
 import (
 	"context"
 	"errors"
+	"github.com/filecoin-project/lotus/api"
+	"github.com/filecoin-project/lotus/chain/types"
 	"io"
 	"math"
 	"sync"
@@ -51,22 +53,27 @@ type SealingAPI interface {
 	StateSectorPreCommitInfo(ctx context.Context, maddr address.Address, sectorNumber abi.SectorNumber, tok TipSetToken) (*miner.SectorPreCommitOnChainInfo, error)
 	StateSectorGetInfo(ctx context.Context, maddr address.Address, sectorNumber abi.SectorNumber, tok TipSetToken) (*miner.SectorOnChainInfo, error)
 	StateSectorPartition(ctx context.Context, maddr address.Address, sectorNumber abi.SectorNumber, tok TipSetToken) (*SectorLocation, error)
+	StateLookupID(context.Context, address.Address, TipSetToken) (address.Address, error)
 	StateMinerSectorSize(context.Context, address.Address, TipSetToken) (abi.SectorSize, error)
 	StateMinerWorkerAddress(ctx context.Context, maddr address.Address, tok TipSetToken) (address.Address, error)
 	StateMinerPreCommitDepositForPower(context.Context, address.Address, miner.SectorPreCommitInfo, TipSetToken) (big.Int, error)
 	StateMinerInitialPledgeCollateral(context.Context, address.Address, miner.SectorPreCommitInfo, TipSetToken) (big.Int, error)
 	StateMinerInfo(context.Context, address.Address, TipSetToken) (miner.MinerInfo, error)
 	StateMinerSectorAllocated(context.Context, address.Address, abi.SectorNumber, TipSetToken) (bool, error)
-	StateMarketStorageDeal(context.Context, abi.DealID, TipSetToken) (market.DealProposal, error)
+	StateMarketStorageDeal(context.Context, abi.DealID, TipSetToken) (*api.MarketDeal, error)
+	StateMarketStorageDealProposal(context.Context, abi.DealID, TipSetToken) (market.DealProposal, error)
 	StateNetworkVersion(ctx context.Context, tok TipSetToken) (network.Version, error)
 	SendMsg(ctx context.Context, from, to address.Address, method abi.MethodNum, value, maxFee abi.TokenAmount, params []byte) (cid.Cid, error)
 	ChainHead(ctx context.Context) (TipSetToken, abi.ChainEpoch, error)
+	ChainGetMessage(ctx context.Context, mc cid.Cid) (*types.Message, error)
 	ChainGetRandomnessFromBeacon(ctx context.Context, tok TipSetToken, personalization crypto.DomainSeparationTag, randEpoch abi.ChainEpoch, entropy []byte) (abi.Randomness, error)
 	ChainGetRandomnessFromTickets(ctx context.Context, tok TipSetToken, personalization crypto.DomainSeparationTag, randEpoch abi.ChainEpoch, entropy []byte) (abi.Randomness, error)
 	ChainReadObj(context.Context, cid.Cid) ([]byte, error)
 }
 
 type SectorStateNotifee func(before, after SectorInfo)
+
+type AddrSel func(ctx context.Context, mi miner.MinerInfo, use api.AddrUse, goodFunds, minFunds abi.TokenAmount) (address.Address, abi.TokenAmount, error)
 
 type Sealing struct {
 	api    SealingAPI
@@ -87,15 +94,18 @@ type Sealing struct {
 	toUpgrade map[abi.SectorNumber]struct{}
 
 	notifee SectorStateNotifee
+	addrSel AddrSel
 
 	stats SectorStats
 
 	getConfig GetSealingConfigFunc
+	dealInfo  *CurrentDealInfoManager
 }
 
 type FeeConfig struct {
 	MaxPreCommitGasFee abi.TokenAmount
 	MaxCommitGasFee    abi.TokenAmount
+	MaxTerminateGasFee abi.TokenAmount
 }
 
 type UnsealedSectorMap struct {
@@ -111,7 +121,7 @@ type UnsealedSectorInfo struct {
 	ssize      abi.SectorSize
 }
 
-func New(api SealingAPI, fc FeeConfig, events Events, maddr address.Address, ds datastore.Batching, sealer sectorstorage.SectorManager, sc SectorIDCounter, verif ffiwrapper.Verifier, pcp PreCommitPolicy, gc GetSealingConfigFunc, notifee SectorStateNotifee) *Sealing {
+func New(api SealingAPI, fc FeeConfig, events Events, maddr address.Address, ds datastore.Batching, sealer sectorstorage.SectorManager, sc SectorIDCounter, verif ffiwrapper.Verifier, pcp PreCommitPolicy, gc GetSealingConfigFunc, notifee SectorStateNotifee, as AddrSel) *Sealing {
 	s := &Sealing{
 		api:    api,
 		feeCfg: fc,
@@ -130,8 +140,10 @@ func New(api SealingAPI, fc FeeConfig, events Events, maddr address.Address, ds 
 		toUpgrade: map[abi.SectorNumber]struct{}{},
 
 		notifee: notifee,
+		addrSel: as,
 
 		getConfig: gc,
+		dealInfo:  &CurrentDealInfoManager{api},
 
 		stats: SectorStats{
 			bySector: map[abi.SectorID]statSectorState{},
@@ -433,7 +445,12 @@ func (m *Sealing) currentSealProof(ctx context.Context) (abi.RegisteredSealProof
 		return 0, err
 	}
 
-	return mi.SealProofType, nil
+	ver, err := m.api.StateNetworkVersion(ctx, nil)
+	if err != nil {
+		return 0, err
+	}
+
+	return miner.PreferredSealProofTypeFromWindowPoStType(ver, mi.WindowPoStProofType)
 }
 
 func (m *Sealing) minerSector(spt abi.RegisteredSealProof, num abi.SectorNumber) storage.SectorRef {

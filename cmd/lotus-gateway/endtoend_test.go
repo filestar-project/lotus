@@ -171,7 +171,11 @@ func TestDealFlow(t *testing.T) {
 	nodes := startNodesWithFunds(ctx, t, blocktime, maxLookbackCap, maxStateWaitLookbackLimit)
 	defer nodes.closer()
 
-	test.MakeDeal(t, ctx, 6, nodes.lite, nodes.miner, false, false)
+	// For these tests where the block time is artificially short, just use
+	// a deal start epoch that is guaranteed to be far enough in the future
+	// so that the deal starts sealing in time
+	dealStartEpoch := abi.ChainEpoch(2 << 12)
+	test.MakeDeal(t, ctx, 6, nodes.lite, nodes.miner, false, false, dealStartEpoch)
 }
 
 func TestCLIDealFlow(t *testing.T) {
@@ -241,7 +245,7 @@ func startNodes(
 
 				// Create a gateway server in front of the full node
 				gapiImpl := newGatewayAPI(fullNode, lookbackCap, stateWaitLookbackLimit)
-				_, addr, err := builder.CreateRPCServer(gapiImpl)
+				_, addr, err := builder.CreateRPCServer(t, gapiImpl)
 				require.NoError(t, err)
 
 				// Create a gateway client API that connects to the gateway server

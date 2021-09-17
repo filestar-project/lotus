@@ -111,7 +111,7 @@ func pledgeSectors(t *testing.T, ctx context.Context, miner TestStorageNode, n, 
 
 func TestWindowPost(t *testing.T, b APIBuilder, blocktime time.Duration, nSectors int) {
 	for _, height := range []abi.ChainEpoch{
-		1,    // before
+		2,    // before
 		162,  // while sealing
 		5000, // while proving
 	} {
@@ -127,7 +127,7 @@ func testWindowPostUpgrade(t *testing.T, b APIBuilder, blocktime time.Duration, 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	n, sn := b(t, []FullNodeOpts{FullNodeWithUpgradeAt(upgradeHeight)}, OneMiner)
+	n, sn := b(t, []FullNodeOpts{FullNodeWithActorsV3At(upgradeHeight)}, OneMiner)
 
 	client := n[0].FullNode.(*impl.FullNodeAPI)
 	miner := sn[0]

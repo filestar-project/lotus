@@ -32,7 +32,8 @@ func KeyStore(lr repo.LockedRepo) (types.KeyStore, error) {
 
 func Datastore(disableLog bool) func(lc fx.Lifecycle, mctx helpers.MetricsCtx, r repo.LockedRepo) (dtypes.MetadataDS, error) {
 	return func(lc fx.Lifecycle, mctx helpers.MetricsCtx, r repo.LockedRepo) (dtypes.MetadataDS, error) {
-		mds, err := r.Datastore("/metadata")
+		ctx := helpers.LifecycleCtx(mctx, lc)
+		mds, err := r.Datastore(ctx, "/metadata")
 		if err != nil {
 			return nil, err
 		}

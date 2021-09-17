@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/filecoin-project/lotus/chain/actors/builtin/stake"
+	"github.com/filecoin-project/lotus/chain/actors/builtin/token"
 	"time"
 
 	datatransfer "github.com/filecoin-project/go-data-transfer"
@@ -458,6 +459,18 @@ type FullNode interface {
 	StateStakerVestingReward(context.Context, address.Address, types.TipSetKey) (abi.TokenAmount, error)
 	StateStakerAvailableReward(context.Context, address.Address, types.TipSetKey) (abi.TokenAmount, error)
 
+	// token
+	StateTokenInfo(context.Context, types.TipSetKey) (*token.TokenStateInfo, error)
+	StateTokenCreators(context.Context, types.TipSetKey) ([]address.Address, error)
+	StateTokenCreatorByTokenID(context.Context, big.Int, types.TipSetKey) (address.Address, error)
+	StateTokenIDsByCreator(context.Context, address.Address, types.TipSetKey) ([]big.Int, error)
+	StateTokenURIByTokenID(context.Context, big.Int, types.TipSetKey) (string, error)
+	StateTokenBalanceByTokenID(context.Context, big.Int, types.TipSetKey) ([]*token.TokenBalanceInfoByTokenID, error)
+	StateTokenBalanceByAddr(context.Context, address.Address, types.TipSetKey) ([]*token.TokenBalanceInfoByAddr, error)
+	StateTokenBalanceByTokenIDAndAddr(context.Context, big.Int, address.Address, types.TipSetKey) (abi.TokenAmount, error)
+	StateTokenBalanceByTokenIDsAndAddrs(context.Context, []big.Int, []address.Address, types.TipSetKey) ([]abi.TokenAmount, error)
+	StateTokenIsAllApproved(context.Context, address.Address, address.Address, types.TipSetKey) (bool, error)
+
 	// MethodGroup: Msig
 	// The Msig methods are used to interact with multisig wallets on the
 	// filecoin network
@@ -646,6 +659,7 @@ type Message struct {
 
 type ActorState struct {
 	Balance types.BigInt
+	Code    cid.Cid
 	State   interface{}
 }
 
