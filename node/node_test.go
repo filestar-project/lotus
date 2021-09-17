@@ -46,16 +46,16 @@ func TestAPIDealFlow(t *testing.T) {
 	dealStartEpoch := abi.ChainEpoch(2 << 12)
 
 	t.Run("TestDealFlow", func(t *testing.T) {
-		test.TestDealFlow(t, builder.MockSbBuilder, 10*time.Millisecond, false, false)
+		test.TestDealFlow(t, builder.MockSbBuilder, 10*time.Millisecond, false, false, dealStartEpoch)
 	})
 	t.Run("WithExportedCAR", func(t *testing.T) {
-		test.TestDealFlow(t, builder.MockSbBuilder, 10*time.Millisecond, true, false)
+		test.TestDealFlow(t, builder.MockSbBuilder, 10*time.Millisecond, true, false, dealStartEpoch)
 	})
 	t.Run("TestDoubleDealFlow", func(t *testing.T) {
-		test.TestDoubleDealFlow(t, builder.MockSbBuilder, 10*time.Millisecond)
+		test.TestDoubleDealFlow(t, builder.MockSbBuilder, 10*time.Millisecond, dealStartEpoch)
 	})
 	t.Run("TestFastRetrievalDealFlow", func(t *testing.T) {
-		test.TestFastRetrievalDealFlow(t, builder.MockSbBuilder, 10*time.Millisecond)
+		test.TestFastRetrievalDealFlow(t, builder.MockSbBuilder, 10*time.Millisecond, dealStartEpoch)
 	})
 	t.Run("TestPublishDealsBatching", func(t *testing.T) {
 		test.TestPublishDealsBatching(t, builder.MockSbBuilder, blockTime, dealStartEpoch)
@@ -81,11 +81,11 @@ func TestAPIDealFlowReal(t *testing.T) {
 	})
 
 	t.Run("basic", func(t *testing.T) {
-		test.TestDealFlow(t, builder.Builder, time.Second, false, false)
+		test.TestDealFlow(t, builder.Builder, time.Second, false, false, 0)
 	})
 
 	t.Run("fast-retrieval", func(t *testing.T) {
-		test.TestDealFlow(t, builder.Builder, time.Second, false, true)
+		test.TestDealFlow(t, builder.Builder, time.Second, false, true, 0)
 	})
 
 	t.Run("retrieval-second", func(t *testing.T) {
