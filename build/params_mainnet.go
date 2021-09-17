@@ -44,10 +44,9 @@ const UpgradeStakeHeight = 584460
 
 const Upgrade8GiBPoStGasHeight = 814860
 
-// TODO
-var UpgradeActorsV3Height = abi.ChainEpoch(99999999)
+var UpgradeActorsV3Height = abi.ChainEpoch(953100)
 
-const UpgradeTokenHeight = math.MaxInt64
+const UpgradeTokenHeight = 953102
 
 func init() {
 	policy.SetConsensusMinerMinPower(abi.NewStoragePower(32 << 30))
