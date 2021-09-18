@@ -206,7 +206,8 @@ type FullNodeStruct struct {
 		StateReadState                     func(context.Context, address.Address, types.TipSetKey) (*api.ActorState, error)                                    `perm:"read"`
 		StateWaitMsg                       func(ctx context.Context, cid cid.Cid, confidence uint64) (*api.MsgLookup, error)                                   `perm:"read"`
 		StateWaitMsgLimited                func(context.Context, cid.Cid, uint64, abi.ChainEpoch) (*api.MsgLookup, error)                                      `perm:"read"`
-		StateSearchMsg                     func(context.Context, cid.Cid) (*api.MsgLookup, error)                                                              `perm:"read"`
+		StateSearchMsg                     func(context.Context, cid.Cid) (*api.MsgLookup, error)
+		StateSearchMsgLimited              func(context.Context, cid.Cid, abi.ChainEpoch) (*api.MsgLookup, error)  `perm:"read"`
 		StateListMiners                    func(context.Context, types.TipSetKey) ([]address.Address, error)                                                   `perm:"read"`
 		StateListActors                    func(context.Context, types.TipSetKey) ([]address.Address, error)                                                   `perm:"read"`
 		StateMarketBalance                 func(context.Context, address.Address, types.TipSetKey) (api.MarketBalance, error)                                  `perm:"read"`
@@ -1025,6 +1026,10 @@ func (c *FullNodeStruct) StateWaitMsgLimited(ctx context.Context, msgc cid.Cid, 
 
 func (c *FullNodeStruct) StateSearchMsg(ctx context.Context, msgc cid.Cid) (*api.MsgLookup, error) {
 	return c.Internal.StateSearchMsg(ctx, msgc)
+}
+
+func (c *FullNodeStruct) StateSearchMsgLimited(ctx context.Context, msgc cid.Cid, limit abi.ChainEpoch) (*api.MsgLookup, error) {
+	return c.Internal.StateSearchMsgLimited(ctx, msgc, limit)
 }
 
 func (c *FullNodeStruct) StateListMiners(ctx context.Context, tsk types.TipSetKey) ([]address.Address, error) {
