@@ -39,7 +39,11 @@ func (as *AddressSelector) AddressFor(ctx context.Context, a addrSelectApi, mi m
 		delete(defaultCtl, mi.Owner)
 		delete(defaultCtl, mi.Worker)
 
-		for _, addr := range append(append([]address.Address{}, as.PreCommitControl...), as.CommitControl...) {
+		configCtl := append([]address.Address{}, as.PreCommitControl...)
+		configCtl = append(configCtl, as.CommitControl...)
+		configCtl = append(configCtl, as.TerminateControl...)
+
+		for _, addr := range append(configCtl) {
 			if addr.Protocol() != address.ID {
 				var err error
 				addr, err = a.StateLookupID(ctx, addr, types.EmptyTSK)
@@ -56,7 +60,12 @@ func (as *AddressSelector) AddressFor(ctx context.Context, a addrSelectApi, mi m
 			addrs = append(addrs, a)
 		}
 	}
-	addrs = append(addrs, mi.Owner, mi.Worker)
+	if len(addrs) == 0 || !as.DisableWorkerFallback {
+		addrs = append(addrs, mi.Worker)
+	}
+	if !as.DisableOwnerFallback {
+		addrs = append(addrs, mi.Owner)
+	}
 
 	return pickAddress(ctx, a, mi, goodFunds, minFunds, addrs)
 }

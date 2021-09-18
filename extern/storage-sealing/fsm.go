@@ -148,6 +148,21 @@ var fsmPlanners = map[SectorState]func(events []statemachine.Event, state *Secto
 		on(SectorFaultReported{}, FaultReported),
 		on(SectorFaulty{}, Faulty),
 	),
+	Terminating: planOne(
+		on(SectorTerminating{}, TerminateWait),
+		on(SectorTerminateFailed{}, TerminateFailed),
+	),
+	TerminateWait: planOne(
+		on(SectorTerminated{}, TerminateFinality),
+		on(SectorTerminateFailed{}, TerminateFailed),
+	),
+	TerminateFinality: planOne(
+		on(SectorTerminateFailed{}, TerminateFailed),
+		// SectorRemove (global)
+	),
+	TerminateFailed: planOne(
+		// SectorTerminating (global)
+	),
 	Removing: planOne(
 		on(SectorSealPreCommit1Failed{}, Removing),
 		on(SectorRetrySealPreCommit1{}, Removing),
@@ -343,6 +358,14 @@ func (m *Sealing) plan(events []statemachine.Event, state *SectorInfo) (func(sta
 	// Post-seal
 	case Proving:
 		return m.handleProvingSector, processed, nil
+	case Terminating:
+		return m.handleTerminating, processed, nil
+	case TerminateWait:
+		return m.handleTerminateWait, processed, nil
+	case TerminateFinality:
+		return m.handleTerminateFinality, processed, nil
+	case TerminateFailed:
+		return m.handleTerminateFailed, processed, nil
 	case Removing:
 		return m.handleRemoving, processed, nil
 	case Removed:

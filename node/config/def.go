@@ -82,6 +82,7 @@ type SealingConfig struct {
 type MinerFeeConfig struct {
 	MaxPreCommitGasFee     types.FIL
 	MaxCommitGasFee        types.FIL
+	MaxTerminateGasFee     types.FIL
 	MaxWindowPoStGasFee    types.FIL
 	MaxPublishDealsFee     types.FIL
 	MaxMarketBalanceAddFee types.FIL
@@ -90,6 +91,16 @@ type MinerFeeConfig struct {
 type MinerAddressConfig struct {
 	PreCommitControl []string
 	CommitControl    []string
+	TerminateControl []string
+
+	// DisableOwnerFallback disables usage of the owner address for messages
+	// sent automatically
+	DisableOwnerFallback bool
+	// DisableWorkerFallback disables usage of the worker address for messages
+	// sent automatically, if control addresses are configured.
+	// A control address that doesn't have enough funds will still be chosen
+	// over the worker address if this flag is set.
+	DisableWorkerFallback bool
 }
 
 // API contains configs for API endpoint
@@ -224,6 +235,7 @@ func DefaultStorageMiner() *StorageMiner {
 		Fees: MinerFeeConfig{
 			MaxPreCommitGasFee:     types.MustParseFIL("0.025"),
 			MaxCommitGasFee:        types.MustParseFIL("0.05"),
+			MaxTerminateGasFee:     types.MustParseFIL("0.5"),
 			MaxWindowPoStGasFee:    types.MustParseFIL("5"),
 			MaxPublishDealsFee:     types.MustParseFIL("0.05"),
 			MaxMarketBalanceAddFee: types.MustParseFIL("0.007"),
