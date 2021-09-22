@@ -3,6 +3,12 @@ package messagepool
 import (
 	"context"
 	"fmt"
+	"github.com/filecoin-project/go-state-types/big"
+	"github.com/filecoin-project/lotus/chain/actors"
+	"github.com/filecoin-project/lotus/chain/actors/builtin/token"
+	builtin3 "github.com/filecoin-project/specs-actors/v3/actors/builtin"
+	token3 "github.com/filecoin-project/specs-actors/v3/actors/builtin/token"
+	"github.com/stretchr/testify/assert"
 	"sort"
 	"testing"
 
@@ -671,4 +677,132 @@ func TestUpdates(t *testing.T) {
 	if ok {
 		t.Fatal("expected closed channel, but got an update instead")
 	}
+}
+
+func TestAddressFilterInTokenMessages(t *testing.T) {
+	tma := newTestMpoolAPI()
+
+	w, err := wallet.NewWallet(wallet.NewMemKeyStore())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	ds := datastore.NewMapDatastore()
+
+	mp, err := New(tma, ds, "mptest", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	a := tma.nextBlock()
+	tma.applyBlock(t, a)
+
+	sender, err := w.WalletNew(context.Background(), types.KTBLS)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// fmt.Printf("sender:%s\n", sender.String())
+
+	addrFromBLS, err := w.WalletNew(context.Background(), types.KTBLS)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// fmt.Printf("sender:%s\n", addrFromBLS.String())
+	addrToBLS, err := w.WalletNew(context.Background(), types.KTBLS)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// fmt.Printf("sender:%s\n", addrToBLS.String())
+
+	tma.setBalance(sender, 1) // in FIL
+	target := token.Address
+
+	addrFromID, err := address.NewIDAddress(1999)
+	if err != nil {
+		t.Fatal(err)
+	}
+	addrToID, err := address.NewIDAddress(2999)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Two ID
+	params, err := actors.SerializeParams(&token3.SafeTransferFromParams{
+		AddrFrom: addrFromID,
+		AddrTo: addrToID,
+		TokenID: big.NewInt(1),
+		Value: big.NewInt(1),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	smsg := mock.MkMessageWithParams(sender, target, uint64(0), w, builtin3.MethodsToken.SafeTransferFrom, params)
+	if err := mp.Add(smsg); err != nil {
+		t.Fatal(err)
+	}
+
+	// Two BLS
+	params, err = actors.SerializeParams(&token3.SafeTransferFromParams{
+		AddrFrom: addrFromBLS,
+		AddrTo: addrToBLS,
+		TokenID: big.NewInt(1),
+		Value: big.NewInt(1),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	smsg = mock.MkMessageWithParams(sender, target, uint64(1), w, builtin3.MethodsToken.SafeTransferFrom, params)
+	err = mp.Add(smsg)
+	assert.Errorf(t, err,"message had invalid address in params")
+
+	// One ID, one BLS
+	params, err = actors.SerializeParams(&token3.SafeTransferFromParams{
+		AddrFrom: addrFromID,
+		AddrTo: addrToBLS,
+		TokenID: big.NewInt(1),
+		Value: big.NewInt(1),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	smsg = mock.MkMessageWithParams(sender, target, uint64(2), w, builtin3.MethodsToken.SafeTransferFrom, params)
+	err = mp.Add(smsg)
+	assert.Errorf(t, err,"message had invalid address in params")
+
+	// MintBatch
+	params, err = actors.SerializeParams(&token3.MintBatchTokenParams{
+		TokenID: big.NewInt(1),
+		AddrTos: []address.Address{addrToID, addrToBLS},
+		Values: []abi.TokenAmount{big.NewInt(1), big.NewInt(1)},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	smsg = mock.MkMessageWithParams(sender, target, uint64(3), w, builtin3.MethodsToken.MintBatch, params)
+	err = mp.Add(smsg)
+	assert.Errorf(t, err,"message had invalid address in params")
+
+	// SetApproveAll
+	params, err = actors.SerializeParams(&token3.SetApproveForAllParams{
+		AddrTo: addrToID,
+		Approved: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	smsg = mock.MkMessageWithParams(sender, target, uint64(4), w, builtin3.MethodsToken.SetApproveForAll, params)
+	if err := mp.Add(smsg); err != nil {
+		t.Fatal(err)
+	}
+
+	params, err = actors.SerializeParams(&token3.SetApproveForAllParams{
+		AddrTo: addrToBLS,
+		Approved: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	smsg = mock.MkMessageWithParams(sender, target, uint64(5), w, builtin3.MethodsToken.SetApproveForAll, params)
+	err = mp.Add(smsg)
+	assert.Errorf(t, err,"message had invalid address in params")
 }
