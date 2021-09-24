@@ -295,8 +295,14 @@ var tokenBalancesCmd = &cli.Command{
 					" ID and address, please give the standard parameter format, refer to: tokenIDs [tokenID1," +
 					"tokenID2,...] owners [owner1,owner2,...]")
 			}
-			tokenIDs := ParseMultiBigNumParams(tokenIDsString)
-			owners := ParseMultiOwnerAddrParams(ownersAddressString)
+			tokenIDs, err := ParseMultiBigNumParams(tokenIDsString)
+			if err != nil {
+				return err
+			}
+			owners, err := ParseMultiOwnerAddrParams(ownersAddressString)
+			if err != nil {
+				return err
+			}
 
 			for idx, _ := range owners {
 				tokenAddrID, err := api.StateLookupID(ctx, owners[idx], types.EmptyTSK)
@@ -371,7 +377,7 @@ var tokenCreateCmd = &cli.Command{
 		&cli.StringFlag{
 			Name:  "amount",
 			Usage: "specify init amount to set for new token",
-			Value: "0",
+			Value: "1",
 		},
 		&cli.StringFlag{
 			Name:  "gas-premium",
@@ -417,6 +423,10 @@ var tokenCreateCmd = &cli.Command{
 			if err != nil {
 				return err
 			}
+		}
+
+		if amount.Equals(big.Zero()) {
+			amount = big.NewInt(1)
 		}
 
 		gp, err := types.BigFromString(cctx.String("gas-premium"))
@@ -533,8 +543,14 @@ var tokenMintBatchCmd = &cli.Command{
 				"empty, please refer to the format:addrTos [addrTo1,addrTo2,...] amounts [amount1,amount2,...]"))
 		}
 
-		addrTos := ParseMultiOwnerAddrParams(addrTosString)
-		amounts := ParseMultiBigNumParams(tokenAmountsString)
+		addrTos, err := ParseMultiOwnerAddrParams(addrTosString)
+		if err != nil {
+			return err
+		}
+		amounts, err := ParseMultiBigNumParams(tokenAmountsString)
+		if err != nil {
+			return err
+		}
 
 		if len(addrTos) != len(amounts) {
 			return ShowHelp(cctx, fmt.Errorf("'token mintBatch' expects length of addrTos is equal with amounts"))
@@ -800,8 +816,14 @@ var tokenSafeTransferCmd = &cli.Command{
 				"empty, please refer to the format:tokenIDs [tokenID1,tokenID2,...] amounts [amount1,amount2,...]"))
 		}
 
-		tokenIDs := ParseMultiBigNumParams(tokenIDsString)
-		amounts := ParseMultiBigNumParams(tokenAmountsString)
+		tokenIDs, err := ParseMultiBigNumParams(tokenIDsString)
+		if err != nil {
+			return err
+		}
+		amounts, err := ParseMultiBigNumParams(tokenAmountsString)
+		if err != nil {
+			return err
+		}
 
 		if len(tokenIDs) != len(amounts) {
 			return ShowHelp(cctx, fmt.Errorf("'token safeTransfer' expects length of tokenIDs is equal with amounts"))
@@ -994,7 +1016,7 @@ var tokenApprovesSetCmd = &cli.Command{
 }
 
 
-func ParseMultiBigNumParams(params string) []big.Int {
+func ParseMultiBigNumParams(params string) ([]big.Int, error) {
 	var bigNums []big.Int
 	var idx = 0
 	for idx < len(params) {
@@ -1004,16 +1026,19 @@ func ParseMultiBigNumParams(params string) []big.Int {
 				strTmp = strTmp + string(params[idx])
 				idx++
 			}
-			tokenID, _ := types.BigFromString(strTmp)
+			tokenID, err := types.BigFromString(strTmp)
+			if err != nil {
+				return nil, err
+			}
 			bigNums = append(bigNums, tokenID)
 		} else {
 			idx++
 		}
 	}
-	return bigNums
+	return bigNums, nil
 }
 
-func ParseMultiOwnerAddrParams(params string) []address.Address {
+func ParseMultiOwnerAddrParams(params string) ([]address.Address, error) {
 	var owners []address.Address
 	var idx = 0
 	for idx < len(params) {
@@ -1023,11 +1048,14 @@ func ParseMultiOwnerAddrParams(params string) []address.Address {
 				strTmp = strTmp + string(params[idx])
 				idx++
 			}
-			owner, _ := address.NewFromString(strTmp)
+			owner, err := address.NewFromString(strTmp)
+			if err != nil {
+				return nil, err
+			}
 			owners = append(owners, owner)
 		} else {
 			idx++
 		}
 	}
-	return owners
+	return owners, nil
 }
