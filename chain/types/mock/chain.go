@@ -3,7 +3,6 @@ package mock
 import (
 	"context"
 	"fmt"
-
 	"github.com/filecoin-project/go-address"
 	"github.com/filecoin-project/go-state-types/abi"
 	"github.com/filecoin-project/go-state-types/crypto"
@@ -32,6 +31,29 @@ func MkMessage(from, to address.Address, nonce uint64, w *wallet.LocalWallet) *t
 		GasLimit:   1000000,
 		GasFeeCap:  types.NewInt(100),
 		GasPremium: types.NewInt(1),
+	}
+
+	sig, err := w.WalletSign(context.TODO(), from, msg.Cid().Bytes(), api.MsgMeta{})
+	if err != nil {
+		panic(err)
+	}
+	return &types.SignedMessage{
+		Message:   *msg,
+		Signature: *sig,
+	}
+}
+
+func MkMessageWithParams(from, to address.Address, nonce uint64, w *wallet.LocalWallet, method abi.MethodNum, Params []byte) *types.SignedMessage {
+	msg := &types.Message{
+		To:         to,
+		From:       from,
+		Value:      types.NewInt(1),
+		Nonce:      nonce,
+		GasLimit:   1000000,
+		GasFeeCap:  types.NewInt(100),
+		GasPremium: types.NewInt(1),
+		Method: method,
+		Params: Params,
 	}
 
 	sig, err := w.WalletSign(context.TODO(), from, msg.Cid().Bytes(), api.MsgMeta{})

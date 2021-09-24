@@ -5,6 +5,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/filecoin-project/lotus/chain/actors/builtin/token"
+	builtin3 "github.com/filecoin-project/specs-actors/v3/actors/builtin"
+	token3 "github.com/filecoin-project/specs-actors/v3/actors/builtin/token"
 	"math"
 	stdbig "math/big"
 	"sort"
@@ -71,6 +74,8 @@ var (
 	ErrNotEnoughFunds = errors.New("not enough funds to execute transaction")
 
 	ErrInvalidToAddr = errors.New("message had invalid to address")
+
+	ErrInvalidParamsAddr = errors.New("message had invalid address in params")
 
 	ErrSoftValidationFailure  = errors.New("validation failure")
 	ErrRBFTooLowPremium       = errors.New("replace by fee has too low GasPremium")
@@ -566,6 +571,45 @@ func (mp *MessagePool) checkMessage(m *types.SignedMessage) error {
 
 	if m.Message.To == address.Undef {
 		return ErrInvalidToAddr
+	}
+
+	if m.Message.To == token.Address {
+		switch m.Message.Method {
+		case builtin3.MethodsToken.SafeTransferFrom:
+			var tmp token3.SafeTransferFromParams
+			if err := tmp.UnmarshalCBOR(bytes.NewReader(m.Message.Params)); err != nil {
+				return xerrors.Errorf("failed to decode params: %w", err)
+			}
+			if tmp.AddrFrom.Protocol() != address.ID || tmp.AddrTo.Protocol() != address.ID {
+				return ErrInvalidParamsAddr
+			}
+		case builtin3.MethodsToken.SafeBatchTransferFrom:
+			var tmp token3.SafeBatchTransferFromParams
+			if err := tmp.UnmarshalCBOR(bytes.NewReader(m.Message.Params)); err != nil {
+				return xerrors.Errorf("failed to decode params: %w", err)
+			}
+			if tmp.AddrFrom.Protocol() != address.ID || tmp.AddrTo.Protocol() != address.ID {
+				return ErrInvalidParamsAddr
+			}
+		case builtin3.MethodsToken.MintBatch:
+			var tmp token3.MintBatchTokenParams
+			if err := tmp.UnmarshalCBOR(bytes.NewReader(m.Message.Params)); err != nil {
+				return xerrors.Errorf("failed to decode params: %w", err)
+			}
+			for index, _ := range tmp.AddrTos {
+				if tmp.AddrTos[index].Protocol() != address.ID {
+					return ErrInvalidParamsAddr
+				}
+			}
+		case builtin3.MethodsToken.SetApproveForAll:
+			var tmp token3.SetApproveForAllParams
+			if err := tmp.UnmarshalCBOR(bytes.NewReader(m.Message.Params)); err != nil {
+				return xerrors.Errorf("failed to decode params: %w", err)
+			}
+			if tmp.AddrTo.Protocol() != address.ID {
+				return ErrInvalidParamsAddr
+			}
+		}
 	}
 
 	if !m.Message.Value.LessThan(types.TotalFilecoinInt) {
