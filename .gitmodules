@@ -1,7 +1,7 @@
 [submodule "extern/filecoin-ffi"]
 	path = extern/filecoin-ffi
 	url = https://github.com/filestar-project/filecoin-ffi.git
-	branch = master
+	branch = mw/rustTune
 [submodule "extern/serialization-vectors"]
 	path = extern/serialization-vectors
 	url = https://github.com/filecoin-project/serialization-vectors.git
