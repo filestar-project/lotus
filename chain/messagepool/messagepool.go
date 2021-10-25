@@ -573,6 +573,15 @@ func (mp *MessagePool) checkMessage(m *types.SignedMessage) error {
 		return ErrInvalidToAddr
 	}
 
+	balance, err := mp.getStateBalance(m.Message.From, mp.curTs)
+	if err != nil {
+		return xerrors.Errorf("check message error : getting origin balance: %w", err)
+	}
+
+	if balance.LessThan(m.Message.Value) {
+		return xerrors.Errorf("check message error: not enough funds: %s < %s", balance, m.Message.Value)
+	}
+
 	if m.Message.To == token.Address {
 		switch m.Message.Method {
 		case builtin3.MethodsToken.SafeTransferFrom:
