@@ -559,6 +559,9 @@ func (mp *MessagePool) Push(m *types.SignedMessage) (cid.Cid, error) {
 }
 
 func (mp *MessagePool) checkMessage(m *types.SignedMessage) error {
+
+	log.Info("check Message, from: %s to %s\n", m.Message.From, m.Message.To)
+
 	// big messages are bad, anti DOS
 	if m.Size() > 32*1024 {
 		return xerrors.Errorf("mpool message too large (%dB): %w", m.Size(), ErrMessageTooBig)
@@ -574,6 +577,8 @@ func (mp *MessagePool) checkMessage(m *types.SignedMessage) error {
 	}
 
 	balance, err := mp.getStateBalance(m.Message.From, mp.curTs)
+	log.Info("check Balance, balance now in from address: %s, request value: %s\n", balance, m.Message.Value)
+
 	if err != nil {
 		return xerrors.Errorf("check message error : getting origin balance: %w", err)
 	}
@@ -583,6 +588,7 @@ func (mp *MessagePool) checkMessage(m *types.SignedMessage) error {
 	}
 
 	if m.Message.To == token.Address {
+		log.Info("check params while actor is token\n")
 		switch m.Message.Method {
 		case builtin3.MethodsToken.SafeTransferFrom:
 			var tmp token3.SafeTransferFromParams
