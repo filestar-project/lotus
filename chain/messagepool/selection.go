@@ -41,21 +41,37 @@ type msgChain struct {
 	prev         *msgChain
 }
 
-func (mp *MessagePool) SelectMessages(ts *types.TipSet, tq float64) ([]*types.SignedMessage, error) {
+func (mp *MessagePool) SelectMessages(ts *types.TipSet, tq float64) (msgs []*types.SignedMessage, err error) {
 	mp.curTsLk.Lock()
 	defer mp.curTsLk.Unlock()
 
 	mp.lk.Lock()
 	defer mp.lk.Unlock()
 
+	log.Infof("select Message, tq: %f\n", tq)
 	// if the ticket quality is high enough that the first block has higher probability
 	// than any other block, then we don't bother with optimal selection because the
 	// first block will always have higher effective performance
 	if tq > 0.84 {
 		return mp.selectMessagesGreedy(mp.curTs, ts)
+	} else {
+		msgs, err = mp.selectMessagesOptimal(mp.curTs, ts, tq)
 	}
 
-	return mp.selectMessagesOptimal(mp.curTs, ts, tq)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(msgs) > build.BlockMessageLimit {
+		msgs = msgs[:build.BlockMessageLimit]
+	}
+
+	log.Infof("select Message, After select: \n")
+	for idx, msg := range msgs {
+		log.Infof("After select Message: %d, message value: %s, CID: %s\n", idx, types.FIL(msg.Message.Value), msg.Message.Cid())
+	}
+
+	return msgs, nil
 }
 
 func (mp *MessagePool) selectMessagesOptimal(curTs, ts *types.TipSet, tq float64) ([]*types.SignedMessage, error) {
@@ -73,6 +89,14 @@ func (mp *MessagePool) selectMessagesOptimal(curTs, ts *types.TipSet, tq float64
 		return nil, err
 	}
 
+	log.Infof("select Message Optimal-pending, in select: \n")
+	for _, v1 := range pending {
+		for _, msg := range v1 {
+			log.Infof("message value: %s, CID: %s\n", types.FIL(msg.Message.Value), msg.Message.Cid())
+		}
+
+	}
+
 	if len(pending) == 0 {
 		return nil, nil
 	}
@@ -86,6 +110,11 @@ func (mp *MessagePool) selectMessagesOptimal(curTs, ts *types.TipSet, tq float64
 	minGas := int64(gasguess.MinGas)
 	result, gasLimit := mp.selectPriorityMessages(pending, baseFee, ts)
 
+	log.Infof("select Message Optimal-pending-result, in select: \n")
+	for _, msg := range result {
+		log.Infof("message value: %s, CID: %s\n", types.FIL(msg.Message.Value), msg.Message.Cid())
+	}
+
 	// have we filled the block?
 	if gasLimit < minGas {
 		return result, nil
@@ -96,6 +125,12 @@ func (mp *MessagePool) selectMessagesOptimal(curTs, ts *types.TipSet, tq float64
 	var chains []*msgChain
 	for actor, mset := range pending {
 		next := mp.createMessageChains(actor, mset, baseFee, ts)
+		log.Infof("select Optimal NO-Priority Message, next chains in select: \n")
+		for _, chain := range next {
+			for _, msg := range chain.msgs {
+				log.Infof("Optimal NO-Priority msg value 1: %s, CID: %s\n", types.FIL(msg.Message.Value), msg.Message.Cid())
+			}
+		}
 		chains = append(chains, next...)
 	}
 	if dt := time.Since(startChains); dt > time.Millisecond {
@@ -159,6 +194,10 @@ func (mp *MessagePool) selectMessagesOptimal(curTs, ts *types.TipSet, tq float64
 	startMerge := time.Now()
 	last := len(chains)
 	for i, chain := range chains {
+		for _, msg := range chain.msgs {
+			log.Infof("Optimal NO-Priority msg value 2: %s, CID: %s\n", types.FIL(msg.Message.Value), msg.Message.Cid())
+		}
+		log.Infof("Optimal NO-Priority chain msgs gasLimit: %v, gasLimit: %v\n", chain.gasLimit, gasLimit)
 		// did we run out of performing chains?
 		if !allowNegativeChains(curTs.Height()) && chain.gasPerf < 0 {
 			break
@@ -397,6 +436,14 @@ func (mp *MessagePool) selectMessagesGreedy(curTs, ts *types.TipSet) ([]*types.S
 		return nil, err
 	}
 
+	log.Infof("select Message Greedy-pending, in select: \n")
+	for _, v1 := range pending {
+		for _, msg := range v1 {
+			log.Infof("message value: %s, CID: %s\n", types.FIL(msg.Message.Value), msg.Message.Cid())
+		}
+
+	}
+
 	if len(pending) == 0 {
 		return nil, nil
 	}
@@ -410,6 +457,11 @@ func (mp *MessagePool) selectMessagesGreedy(curTs, ts *types.TipSet) ([]*types.S
 	minGas := int64(gasguess.MinGas)
 	result, gasLimit := mp.selectPriorityMessages(pending, baseFee, ts)
 
+	log.Infof("select Message Greedy-pending-result, in select: \n")
+	for _, msg := range result {
+		log.Infof("message value: %s, CID: %s\n", types.FIL(msg.Message.Value), msg.Message.Cid())
+	}
+
 	// have we filled the block?
 	if gasLimit < minGas {
 		return result, nil
@@ -420,6 +472,12 @@ func (mp *MessagePool) selectMessagesGreedy(curTs, ts *types.TipSet) ([]*types.S
 	var chains []*msgChain
 	for actor, mset := range pending {
 		next := mp.createMessageChains(actor, mset, baseFee, ts)
+		log.Infof("select Greedy NO-Priority Message, next chains in select: \n")
+		for _, chain := range next {
+			for _, msg := range chain.msgs {
+				log.Infof("Greedy NO-Priority msg value 1: %s, CID: %s\n", types.FIL(msg.Message.Value), msg.Message.Cid())
+			}
+		}
 		chains = append(chains, next...)
 	}
 	if dt := time.Since(startChains); dt > time.Millisecond {
@@ -441,6 +499,10 @@ func (mp *MessagePool) selectMessagesGreedy(curTs, ts *types.TipSet) ([]*types.S
 	startMerge := time.Now()
 	last := len(chains)
 	for i, chain := range chains {
+		for _, msg := range chain.msgs {
+			log.Infof("Greedy NO-Priority msg value 2: %s, CID: %s\n", types.FIL(msg.Message.Value), msg.Message.Cid())
+		}
+		log.Infof("Greedy NO-Priority chain msgs gasLimit: %v, gasLimit: %v\n", chain.gasLimit, gasLimit)
 		// did we run out of performing chains?
 		if !allowNegativeChains(curTs.Height()) && chain.gasPerf < 0 {
 			break
@@ -540,6 +602,12 @@ func (mp *MessagePool) selectPriorityMessages(pending map[address.Address]map[ui
 			delete(pending, actor)
 			// create chains for the priority actor
 			next := mp.createMessageChains(actor, mset, baseFee, ts)
+			log.Infof("select Priority Message, next chains in select: \n")
+			for _, chain := range next {
+				for _, msg := range chain.msgs {
+					log.Infof("msg value 1: %s, CID: %s\n", types.FIL(msg.Message.Value), msg.Message.Cid())
+				}
+			}
 			chains = append(chains, next...)
 		}
 	}
@@ -561,6 +629,11 @@ func (mp *MessagePool) selectPriorityMessages(pending map[address.Address]map[ui
 	// 3. Merge chains until the block limit, as long as they have non-negative gas performance
 	last := len(chains)
 	for i, chain := range chains {
+		for _, msg := range chain.msgs {
+			log.Infof("msg value 2: %s, CID: %s\n", types.FIL(msg.Message.Value), msg.Message.Cid())
+		}
+		log.Infof("chain msgs gasLimit: %v, gasLimit: %v\n", chain.gasLimit, gasLimit)
+
 		if !allowNegativeChains(ts.Height()) && chain.gasPerf < 0 {
 			break
 		}
@@ -715,6 +788,7 @@ func (mp *MessagePool) createMessageChains(actor address.Address, mset map[uint6
 
 	curNonce := a.Nonce
 	balance := a.Balance.Int
+	log.Infof("create Message Chains, curNonce: %v, balance: %v\n", curNonce, balance)
 	gasLimit := int64(0)
 	skip := 0
 	i := 0
@@ -722,6 +796,7 @@ func (mp *MessagePool) createMessageChains(actor address.Address, mset map[uint6
 	for i = 0; i < len(msgs); i++ {
 		m := msgs[i]
 
+		log.Infof("create Message Chains, Message.Nonce: %v, curNonce: %v, msg CID: %v\n", m.Message.Nonce, curNonce, m.Message.Cid())
 		if m.Message.Nonce < curNonce {
 			log.Warnf("encountered message from actor %s with nonce (%d) less than the current nonce (%d)",
 				actor, m.Message.Nonce, curNonce)
@@ -735,22 +810,26 @@ func (mp *MessagePool) createMessageChains(actor address.Address, mset map[uint6
 		curNonce++
 
 		minGas := vm.PricelistByEpoch(ts.Height()).OnChainMessage(m.ChainLength()).Total()
+		log.Infof("create Message Chains, minGas: %v, m.Message.GasLimit: %\n", minGas, m.Message.GasLimit)
 		if m.Message.GasLimit < minGas {
 			break
 		}
 
 		gasLimit += m.Message.GasLimit
+		log.Infof("create Message Chains, gasLimit: %v, BlockGasLimit: %\n", gasLimit, build.BlockGasLimit)
 		if gasLimit > build.BlockGasLimit {
 			break
 		}
 
 		required := m.Message.RequiredFunds().Int
+		log.Infof("create Message Chains, required: %v, balance: %\n", required, balance)
 		if balance.Cmp(required) < 0 {
 			break
 		}
 		balance = new(big.Int).Sub(balance, required)
 
 		value := m.Message.Value.Int
+		log.Infof("create Message Chains, value: %v, balance: %\n", value, balance)
 		if balance.Cmp(value) < 0 {
 			break
 		}
@@ -799,6 +878,7 @@ func (mp *MessagePool) createMessageChains(actor address.Address, mset map[uint6
 
 		// try to add the message to the current chain -- if it decreases the gasPerf, then make a
 		// new chain
+		log.Infof("create Message Chains, gasPerf: %v, curChain.gasPerf: %\n", gasPerf, curChain.gasPerf)
 		if gasPerf < curChain.gasPerf {
 			chains = append(chains, curChain)
 			curChain = newChain(m, i)
@@ -816,6 +896,7 @@ func (mp *MessagePool) createMessageChains(actor address.Address, mset map[uint6
 		merged := 0
 
 		for i := len(chains) - 1; i > 0; i-- {
+			log.Infof("create Message Chains, chains[%v].gasPerf: %v, chains[%v-1].gasPerf: %\n", i, chains[i].gasPerf, i - 1, chains[i-1].gasPerf)
 			if chains[i].gasPerf >= chains[i-1].gasPerf {
 				chains[i-1].msgs = append(chains[i-1].msgs, chains[i].msgs...)
 				chains[i-1].gasReward = new(big.Int).Add(chains[i-1].gasReward, chains[i].gasReward)
