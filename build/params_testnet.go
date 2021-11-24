@@ -1,8 +1,4 @@
-// +build !debug
-// +build !2k
-// +build !8g
-// +build !testground
-// +build !testnet
+// +build testnet
 
 package build
 
@@ -13,6 +9,7 @@ import (
 	"github.com/filecoin-project/go-address"
 	"github.com/filecoin-project/go-state-types/abi"
 	"github.com/filecoin-project/lotus/chain/actors/policy"
+
 	builtin2 "github.com/filecoin-project/specs-actors/v2/actors/builtin"
 )
 
@@ -39,15 +36,11 @@ const UpgradeLiftoffHeight = 2
 
 const UpgradeKumquatHeight = 3
 
-const Upgrade8GiBSectorHeight = 184560
+const Upgrade8GiBSectorHeight = 4
 
-const UpgradeStakeHeight = 584460
+const UpgradeStakeHeight = 5
 
-const Upgrade8GiBPoStGasHeight = 814860
-
-var UpgradeActorsV3Height = abi.ChainEpoch(953100)
-
-const UpgradeTokenHeight = 953102
+const Upgrade8GiBPoStGasHeight = 6
 
 func init() {
 	policy.SetConsensusMinerMinPower(abi.NewStoragePower(32 << 30))
@@ -56,21 +49,18 @@ func init() {
 		abi.RegisteredSealProof_StackedDrg64GiBV1,
 	)
 
-	if os.Getenv("LOTUS_USE_TEST_ADDRESSES") != "1" {
-		SetAddressNetwork(address.Mainnet)
-	}
+	SetAddressNetwork(address.Testnet)
 
-	if os.Getenv("LOTUS_DISABLE_V3_ACTOR_MIGRATION") == "1" {
-		UpgradeActorsV3Height = math.MaxInt64 - 2
+	if os.Getenv("LOTUS_DISABLE_V2_ACTOR_MIGRATION") == "1" {
+		UpgradeActorsV2Height = math.MaxInt64
 	}
 
 	Devnet = false
-
-	BuildType = BuildMainnet
+	BuildType |= BuildTestnet
 }
 
 const BlockDelaySecs = uint64(builtin2.EpochDurationSeconds)
 
 const PropagationDelaySecs = uint64(6)
 
-const BootstrapPeerThreshold = 3
+const BootstrapPeerThreshold = 1

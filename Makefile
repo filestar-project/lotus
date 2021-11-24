@@ -66,6 +66,9 @@ debug: lotus lotus-miner lotus-worker lotus-seed
 8g: GOFLAGS+=-tags=8g
 8g: lotus lotus-miner lotus-worker lotus-seed
 
+testnet: GOFLAGS+=-tags=testnet
+testnet: lotus lotus-miner lotus-worker lotus-seed
+
 lotus: $(BUILD_DEPS)
 	rm -f lotus
 	go build $(GOFLAGS) -o lotus ./cmd/lotus

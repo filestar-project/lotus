@@ -11,31 +11,31 @@ var BuildType int
 
 const (
 	BuildDefault = 0
-	BuildMainnet = 0x1
-	Build2k      = 0x2
-	Build8g      = 0x3
-	BuildDebug   = 0x4
+	Build2k      = 0x1
+	Build8g      = 0x2
+	BuildDebug   = 0x3
+	BuildTestnet = 0x4
 )
 
 func buildType() string {
 	switch BuildType {
 	case BuildDefault:
 		return ""
-	case BuildMainnet:
-		return "+mainnet"
 	case BuildDebug:
 		return "+debug"
 	case Build2k:
 		return "+2k"
 	case Build8g:
 		return "+8g"
+	case BuildTestnet:
+		return "+testnet"
 	default:
 		return "+huh?"
 	}
 }
 
 // BuildVersion is the local build version, set by build system
-const BuildVersion = "1.5.1"
+const BuildVersion = "1.4.1"
 
 func UserVersion() string {
 	return BuildVersion + buildType() + CurrentCommit
