@@ -22,6 +22,7 @@ import (
 	miner3 "github.com/filecoin-project/specs-actors/v3/actors/builtin/miner"
 	paych3 "github.com/filecoin-project/specs-actors/v3/actors/builtin/paych"
 	verifreg3 "github.com/filecoin-project/specs-actors/v3/actors/builtin/verifreg"
+	"golang.org/x/xerrors"
 )
 
 const (
@@ -144,7 +145,7 @@ func GetWinningPoStSectorSetLookback(nwVer network.Version) abi.ChainEpoch {
 }
 
 func GetMaxSectorExpirationExtension() abi.ChainEpoch {
-	return miner0.MaxSectorExpirationExtension
+	return miner3.MaxSectorExpirationExtension
 }
 
 // TODO: we'll probably need to abstract over this better in the future.
@@ -173,4 +174,44 @@ func GetDefaultSectorSize() abi.SectorSize {
 	})
 
 	return szs[0]
+}
+func GetAddressedSectorsMax(nwVer network.Version) (int, error) {
+	v := actors.VersionForNetwork(nwVer)
+
+	switch v {
+
+	case actors.Version0:
+		return miner0.AddressedSectorsMax, nil
+
+	case actors.Version2:
+		return miner2.AddressedSectorsMax, nil
+
+	case actors.Version3:
+		return miner3.AddressedSectorsMax, nil
+
+	default:
+		return 0, xerrors.Errorf("unsupported network version")
+	}
+}
+
+func GetDeclarationsMax(nwVer network.Version) (int, error) {
+	v := actors.VersionForNetwork(nwVer)
+	switch v {
+
+	case actors.Version0:
+
+		// TODO: Should we instead error here since the concept doesn't exist yet?
+		return miner0.AddressedPartitionsMax, nil
+
+	case actors.Version2:
+
+		return miner2.DeclarationsMax, nil
+
+	case actors.Version3:
+
+		return miner3.DeclarationsMax, nil
+
+	default:
+		return 0, xerrors.Errorf("unsupported network version")
+	}
 }
