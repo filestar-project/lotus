@@ -587,6 +587,20 @@ func (mp *MessagePool) checkMessage(m *types.SignedMessage) error {
 		return xerrors.Errorf("check message error: not enough funds: %s < %s", types.FIL(balance), types.FIL(m.Message.Value))
 	}
 
+	// TODO: Check the balance based on the message whose from address is Message.From in the message pool
+	msgs := mp.pendingFor(m.Message.From)
+	balanceMayUsed := big.Add(m.Message.Value, big.Mul(big.NewInt(m.Message.GasLimit), m.Message.GasFeeCap))
+	for _, msg := range msgs {
+		if msg.Message.Nonce > m.Message.Nonce {
+			break
+		}
+		balance = big.Sub(balance, msg.Message.Value)
+		balance = big.Sub(balance, big.Mul(big.NewInt(msg.Message.GasLimit), msg.Message.GasFeeCap))
+		if balance.LessThan(balanceMayUsed) {
+			return xerrors.Errorf("check message error: may not enough funds (Cause: There is already balance consumption in the message pool): %s < %s", types.FIL(balance), types.FIL(m.Message.Value))
+		}
+	}
+
 	if m.Message.To == token.Address {
 		log.Info("check params while actor is token\n")
 		switch m.Message.Method {
