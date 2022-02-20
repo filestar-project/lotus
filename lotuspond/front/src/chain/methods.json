@@ -105,6 +105,11 @@
     "Constructor",
     "PubkeyAddress"
   ],
+  "fil/2/contract": [
+    "Send",
+    "Constructor",
+    "CallContract"
+  ],
   "fil/2/cron": [
     "Send",
     "Constructor",
@@ -113,7 +118,8 @@
   "fil/2/init": [
     "Send",
     "Constructor",
-    "Exec"
+    "Exec",
+    "ExecWithResult"
   ],
   "fil/2/multisig": [
     "Send",

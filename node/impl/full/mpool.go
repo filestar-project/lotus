@@ -1,6 +1,7 @@
 package full
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 
@@ -10,10 +11,15 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/filecoin-project/lotus/api"
+	"github.com/filecoin-project/lotus/chain/actors"
 	"github.com/filecoin-project/lotus/chain/messagepool"
 	"github.com/filecoin-project/lotus/chain/messagesigner"
 	"github.com/filecoin-project/lotus/chain/types"
 	"github.com/filecoin-project/lotus/node/modules/dtypes"
+	"github.com/filecoin-project/specs-actors/v2/actors/builtin"
+	builtin2 "github.com/filecoin-project/specs-actors/v2/actors/builtin"
+	"github.com/filecoin-project/specs-actors/v2/actors/builtin/contract"
+	initActor "github.com/filecoin-project/specs-actors/v2/actors/builtin/init"
 )
 
 type MpoolModuleAPI interface {
@@ -152,9 +158,57 @@ func (a *MpoolAPI) MpoolPushMessage(ctx context.Context, msg *types.Message, spe
 		return nil, xerrors.Errorf("MpoolPushMessage expects message nonce to be 0, was %d", msg.Nonce)
 	}
 
+	// The goal of this code is to prevent double commiting to EVM contract database
+	lastParams := msg.Params
+	isChanged := false
+	// check that it is init actor message
+	if msg.To == builtin2.InitActorAddr {
+		// deserialize ExecParams
+		var execParams initActor.ExecParams
+		if err := execParams.UnmarshalCBOR(bytes.NewReader(msg.Params)); err == nil {
+			// if its ExecParams check that CodeCID is Contract Actor
+			if execParams.CodeCID == builtin.ContractActorCodeID {
+				// deserialize ContractParms
+				var contractParams contract.ContractParams
+				if err := contractParams.UnmarshalCBOR(bytes.NewReader(execParams.ConstructorParams)); err == nil {
+					contractParams.CommitStatus = false
+					contractBuf, err := actors.SerializeParams(&contractParams)
+					if err != nil {
+						return nil, xerrors.Errorf("Serialize contractParams error: %w", err)
+					}
+					execParams.ConstructorParams = contractBuf
+					execBuf, err := actors.SerializeParams(&execParams)
+					if err != nil {
+						return nil, xerrors.Errorf("Serialize execParams error: %w", err)
+					}
+					msg.Params = execBuf
+					isChanged = true
+				}
+			}
+		}
+
+	}
+	if msg.Method == builtin2.MethodsContract.CallContract {
+		var contractParams contract.ContractParams
+		if err := contractParams.UnmarshalCBOR(bytes.NewReader(msg.Params)); err == nil {
+			contractParams.CommitStatus = false
+			contractBuf, err := actors.SerializeParams(&contractParams)
+			if err != nil {
+				return nil, xerrors.Errorf("Serialize contractParams error: %w", err)
+			}
+			msg.Params = contractBuf
+			isChanged = true
+		}
+	}
+
 	msg, err = a.GasAPI.GasEstimateMessageGas(ctx, msg, spec, types.EmptyTSK)
 	if err != nil {
 		return nil, xerrors.Errorf("GasEstimateMessageGas error: %w", err)
+	}
+
+	// roll all back
+	if isChanged {
+		msg.Params = lastParams
 	}
 
 	if msg.GasPremium.GreaterThan(msg.GasFeeCap) {

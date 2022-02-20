@@ -8,3 +8,21 @@
 [submodule "extern/test-vectors"]
 	path = extern/test-vectors
 	url = https://github.com/filecoin-project/test-vectors.git
+[submodule "extern/fil-blst"]
+	path = extern/fil-blst
+	url = https://github.com/filecoin-project/fil-blst.git
+[submodule "extern/oni"]
+	path = extern/oni
+	url = https://github.com/filecoin-project/oni
+[submodule "extern/specs-actors"]
+	path = extern/specs-actors
+	url = https://github.com/pixelplex-dev/specs-actors
+[submodule "extern/evm-adapter"]
+	path = extern/evm-adapter
+	url = https://github.com/filestar-project/evm_adapter
+[submodule "extern/go-state-types"]
+	path = extern/go-state-types
+	url = https://github.com/filestar-project/go-state-types
+[submodule "extern/geth"]
+	path = extern/go-ethereum
+	url = https://github.com/pixelplex-dev/filestar-geth 

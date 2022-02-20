@@ -120,12 +120,13 @@ func (bs *gasChargingBlocks) Put(blk block.Block) error {
 
 func (vm *VM) makeRuntime(ctx context.Context, msg *types.Message, parent *Runtime) *Runtime {
 	rt := &Runtime{
-		ctx:         ctx,
-		vm:          vm,
-		state:       vm.cstate,
-		origin:      msg.From,
-		originNonce: msg.Nonce,
-		height:      vm.blockHeight,
+		ctx:             ctx,
+		vm:              vm,
+		state:           vm.cstate,
+		origin:          msg.From,
+		originNonce:     msg.Nonce,
+		height:          vm.blockHeight,
+		recieverAddress: msg.To,
 
 		gasUsed:          0,
 		gasAvailable:     msg.GasLimit,
