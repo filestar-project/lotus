@@ -15,7 +15,7 @@ var (
 	MemPoolSizeLimitHiDefault = 30000
 	MemPoolSizeLimitLoDefault = 20000
 	PruneCooldownDefault      = time.Minute
-	GasLimitOverestimation    = 1.25
+	GasLimitOverestimation    = 2.0
 
 	ConfigKey = datastore.NewKey("/mpool/config")
 )

@@ -39,7 +39,6 @@ import (
 	lru "github.com/hashicorp/golang-lru"
 	block "github.com/ipfs/go-block-format"
 	"github.com/ipfs/go-cid"
-	"github.com/ipfs/go-datastore"
 	dstore "github.com/ipfs/go-datastore"
 	"github.com/ipfs/go-datastore/query"
 	cbor "github.com/ipfs/go-ipld-cbor"
@@ -489,7 +488,6 @@ func (cs *ChainStore) takeHeaviestTipSet(ctx context.Context, ts *types.TipSet) 
 		log.Errorf("failed to write chain head: %s", err)
 		return nil
 	}
-
 	return nil
 }
 
@@ -527,7 +525,7 @@ func (cs *ChainStore) FlushValidationCache() error {
 	for _, k := range allKeys {
 		if strings.HasPrefix(k.Key, blockValidationCacheKeyPrefix.String()) {
 			delCnt++
-			batch.Delete(datastore.RawKey(k.Key)) // nolint:errcheck
+			batch.Delete(dstore.RawKey(k.Key)) // nolint:errcheck
 		}
 	}
 
@@ -984,13 +982,8 @@ func (cs *ChainStore) MessagesForTipset(ts *types.TipSet) ([]types.ChainMsg, err
 
 	var out []types.ChainMsg
 	for _, bm := range bmsgs {
-		for _, blsm := range bm.BlsMessages {
-			out = append(out, blsm)
-		}
-
-		for _, secm := range bm.SecpkMessages {
-			out = append(out, secm)
-		}
+		out = append(out, bm.BlsMessages...)
+		out = append(out, bm.SecpkMessages...)
 	}
 
 	return out, nil
@@ -1391,9 +1384,7 @@ func (cs *ChainStore) WalkSnapshot(ctx context.Context, ts *types.TipSet, inclRe
 		}
 
 		if b.Height > 0 {
-			for _, p := range b.Parents {
-				blocksToWalk = append(blocksToWalk, p)
-			}
+			blocksToWalk = append(blocksToWalk, b.Parents...)
 		} else {
 			// include the genesis block
 			cids = append(cids, b.Parents...)

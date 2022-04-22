@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"github.com/filecoin-project/go-address"
+	"github.com/filecoin-project/go-fil-markets/storagemarket"
+	"github.com/filecoin-project/go-multistore"
 	"github.com/filecoin-project/go-state-types/abi"
 	"github.com/filecoin-project/go-state-types/cbor"
 	"github.com/filecoin-project/go-state-types/crypto"
@@ -16,12 +18,19 @@ import (
 	"github.com/filecoin-project/go-state-types/network"
 	rtt "github.com/filecoin-project/go-state-types/rt"
 	rt0 "github.com/filecoin-project/specs-actors/actors/runtime"
+	"github.com/filecoin-project/specs-actors/v2/actors/builtin"
+	"github.com/filecoin-project/specs-actors/v2/actors/builtin/contract"
 	rt2 "github.com/filecoin-project/specs-actors/v2/actors/runtime"
 	"github.com/ipfs/go-cid"
 	ipldcbor "github.com/ipfs/go-ipld-cbor"
+	peer "github.com/libp2p/go-libp2p-core/peer"
+
 	"go.opencensus.io/trace"
 	"golang.org/x/xerrors"
 
+	"github.com/filecoin-project/go-state-types/big"
+
+	sapi "github.com/filecoin-project/lotus/api/storage_api"
 	"github.com/filecoin-project/lotus/build"
 	"github.com/filecoin-project/lotus/chain/actors/aerrors"
 	"github.com/filecoin-project/lotus/chain/state"
@@ -72,6 +81,9 @@ type Runtime struct {
 	origin      address.Address
 	originNonce uint64
 
+	// origin reciever address
+	recieverAddress address.Address
+
 	executionTrace    types.ExecutionTrace
 	depth             uint64
 	numActorsCreated  uint64
@@ -79,6 +91,294 @@ type Runtime struct {
 	callerValidated   bool
 	lastGasChargeTime time.Time
 	lastGasCharge     *types.GasTrace
+	// dealing with storage
+	storageAPI sapi.StorageHandle
+}
+
+func (rt *Runtime) Origin() address.Address {
+	return rt.origin
+}
+
+func (rt *Runtime) RecieverAddress() address.Address {
+	return rt.recieverAddress
+}
+
+// GetActorBalance get balance by address
+func (rt *Runtime) GetActorBalance(a address.Address) big.Int {
+	b, err := rt.GetBalance(a)
+	if err != nil {
+		rt.Abortf(err.RetCode(), "get current balance: %v", err)
+	}
+	return b
+}
+
+// GetNonce get nonce from actor via address
+func (rt *Runtime) GetNonce(addr address.Address) uint64 {
+	a, err := rt.state.GetActor(addr)
+	if err != nil {
+		rt.Abortf(exitcode.ErrNotFound, "get current nonce: %v", err)
+	}
+	return a.Nonce
+}
+
+// SetNonce set nonce to new value for actor
+func (rt *Runtime) SetNonce(addr address.Address, value uint64) {
+	err := rt.state.MutateActor(addr, func(act *types.Actor) error {
+		act.Nonce = value
+		return nil
+	})
+	if err != nil {
+		rt.Abortf(exitcode.ErrIllegalState, "SetNonce nonce: %v", err)
+	}
+}
+
+// TransferTokens transfer from, to, value
+func (rt *Runtime) TransferTokens(from, to address.Address, value big.Int) {
+	validateAddress := func(rt *Runtime, check byte) {
+		switch check {
+		case address.SECP256K1:
+		case address.Actor:
+			break
+		default:
+			rt.Abortf(exitcode.ErrForbidden, "Only Secp256k1 or Actor addresses allowed in TransferTokens! Current address protocol: %v", check)
+		}
+	}
+	validateValue := func(rt *Runtime, from address.Address, value *big.Int) {
+		balance := rt.GetActorBalance(from)
+		if balance.LessThan(*value) {
+			rt.Abortf(exitcode.ErrForbidden, "Now enough balance in TransferTokens! Current %s balance: %v", from.String(), value)
+		}
+	}
+
+	// Address and value validation
+	validateAddress(rt, from.Protocol())
+	validateAddress(rt, to.Protocol())
+	validateValue(rt, from, &value)
+
+	// call vm
+	ret, err := rt.internalSend(from, to, builtin.MethodSend, value, nil)
+	if err != nil {
+		if err.IsFatal() {
+			panic(err)
+		}
+		rt.Abortf(exitcode.ErrForbidden, "vmctx send failed: from:%s to: %s, method: %d: ret: %d, err: %s", from.String(), to.String(), builtin.MethodSend, ret, err)
+	}
+	_ = rt.chargeGasSafe(gasOnActorExec)
+}
+
+// AddActorBalance add balance to actor by address
+func (rt *Runtime) AddActorBalance(a address.Address, value big.Int) {
+	err := rt.state.MutateActor(a, func(act *types.Actor) error {
+		act.Balance = types.BigAdd(act.Balance, value)
+		return nil
+	})
+	if err != nil {
+		rt.Abortf(exitcode.ErrIllegalState, "AddActorBalance balance: %v", err)
+	}
+}
+
+// SubActorBalance sub balance to actor by address
+func (rt *Runtime) SubActorBalance(a address.Address, value big.Int) {
+	err := rt.state.MutateActor(a, func(act *types.Actor) error {
+		if act.Balance.LessThan(value) {
+			return fmt.Errorf("not enough funds")
+		}
+
+		act.Balance = types.BigSub(act.Balance, value)
+		return nil
+	})
+	if err != nil {
+		rt.Abortf(exitcode.ErrIllegalState, "SubActorBalance balance: %v", err)
+	}
+}
+
+// DeleteContractActor implements runtime.DeleteContractActor
+func (rt *Runtime) DeleteContractActor(a address.Address) {
+	rt.chargeGas(rt.Pricelist().OnDeleteActor())
+	isContractActor := func(rt *Runtime, addr address.Address) {
+		act, err := rt.state.GetActor(a)
+		if err != nil {
+			if xerrors.Is(err, types.ErrActorNotFound) {
+				rt.Abortf(exitcode.SysErrorIllegalActor, "failed to load actor in delete contract actor: %s", err)
+			}
+			panic(aerrors.Fatalf("failed to get actor: %s", err))
+		}
+		if act.Code != builtin.ContractActorCodeID {
+			rt.Abortf(exitcode.SysErrorIllegalActor, "failed to load actor in delete contract actor: address %x is not a contract actor", a)
+		}
+	}
+
+	// first check that it is a contract actor
+	isContractActor(rt, a)
+
+	// check that it reciever of Runtime is a contract actor
+	isContractActor(rt, rt.RecieverAddress())
+
+	// Delete the executing actor
+	if err := rt.state.DeleteActor(a); err != nil {
+		panic(aerrors.Fatalf("failed to delete actor: %s", err))
+	}
+	_ = rt.chargeGasSafe(gasOnActorExec)
+}
+
+// NewContractActorAddress implements runtime.NewContractActorAddress
+func (rt *Runtime) NewContractActorAddress(code []byte) (address.Address, []byte) {
+	act, err := rt.state.GetActor(rt.Origin())
+	if err != nil {
+		rt.Abortf(exitcode.SysErrorIllegalActor, "failed to get actor for NewContractActorAddress: %s", err)
+	}
+	fakeSalt := make([]byte, 32)
+	binary.LittleEndian.PutUint64(fakeSalt, act.Nonce)
+
+	newAddress, err := contract.PrecomputeContractAddress(rt.Origin(), code, fakeSalt)
+
+	if err != nil {
+		rt.Abortf(exitcode.SysErrorIllegalActor, "failed to compute address for NewContractActorAddress: %s", err)
+	}
+	return newAddress, fakeSalt
+}
+
+func (rt *Runtime) Origin() address.Address {
+	return rt.origin
+}
+
+func (rt *Runtime) RecieverAddress() address.Address {
+	return rt.recieverAddress
+}
+
+// GetActorBalance get balance by address
+func (rt *Runtime) GetActorBalance(a address.Address) big.Int {
+	b, err := rt.GetBalance(a)
+	if err != nil {
+		rt.Abortf(err.RetCode(), "get current balance: %v", err)
+	}
+	return b
+}
+
+// GetNonce get nonce from actor via address
+func (rt *Runtime) GetNonce(addr addr.Address) uint64 {
+	a, err := rt.state.GetActor(addr)
+	if err != nil {
+		rt.Abortf(exitcode.ErrNotFound, "get current nonce: %v", err)
+	}
+	return a.Nonce
+}
+
+// SetNonce set nonce to new value for actor
+func (rt *Runtime) SetNonce(addr addr.Address, value uint64) {
+	err := rt.state.MutateActor(addr, func(act *types.Actor) error {
+		act.Nonce = value
+		return nil
+	})
+	if err != nil {
+		rt.Abortf(exitcode.ErrIllegalState, "SetNonce nonce: %v", err)
+	}
+}
+
+// TransferTokens transfer from, to, value
+func (rt *Runtime) TransferTokens(from, to address.Address, value big.Int) {
+	validateAddress := func(rt *Runtime, check byte) {
+		switch check {
+		case address.SECP256K1:
+		case address.Actor:
+			break
+		default:
+			rt.Abortf(exitcode.ErrForbidden, "Only Secp256k1 or Actor addresses allowed in TransferTokens! Current address protocol: %v", check)
+		}
+	}
+	validateValue := func(rt *Runtime, from address.Address, value *big.Int) {
+		balance := rt.GetActorBalance(from)
+		if balance.LessThan(*value) {
+			rt.Abortf(exitcode.ErrForbidden, "Now enough balance in TransferTokens! Current %s balance: %v", from.String(), value)
+		}
+	}
+
+	// Address and value validation
+	validateAddress(rt, from.Protocol())
+	validateAddress(rt, to.Protocol())
+	validateValue(rt, from, &value)
+
+	// call vm
+	ret, err := rt.internalSend(from, to, builtin.MethodSend, value, nil)
+	if err != nil {
+		if err.IsFatal() {
+			panic(err)
+		}
+		rt.Abortf(exitcode.ErrForbidden, "vmctx send failed: from:%s to: %s, method: %d: ret: %d, err: %s", from.String(), to.String(), builtin.MethodSend, ret, err)
+	}
+	_ = rt.chargeGasSafe(gasOnActorExec)
+}
+
+// AddActorBalance add balance to actor by address
+func (rt *Runtime) AddActorBalance(a address.Address, value big.Int) {
+	err := rt.state.MutateActor(a, func(act *types.Actor) error {
+		act.Balance = types.BigAdd(act.Balance, value)
+		return nil
+	})
+	if err != nil {
+		rt.Abortf(exitcode.ErrIllegalState, "AddActorBalance balance: %v", err)
+	}
+}
+
+// SubActorBalance sub balance to actor by address
+func (rt *Runtime) SubActorBalance(a address.Address, value big.Int) {
+	err := rt.state.MutateActor(a, func(act *types.Actor) error {
+		if act.Balance.LessThan(value) {
+			return fmt.Errorf("not enough funds")
+		}
+
+		act.Balance = types.BigSub(act.Balance, value)
+		return nil
+	})
+	if err != nil {
+		rt.Abortf(exitcode.ErrIllegalState, "SubActorBalance balance: %v", err)
+	}
+}
+
+// DeleteContractActor implements runtime.DeleteContractActor
+func (rt *Runtime) DeleteContractActor(a address.Address) {
+	rt.chargeGas(rt.Pricelist().OnDeleteActor())
+	isContractActor := func(rt *Runtime, addr address.Address) {
+		act, err := rt.state.GetActor(a)
+		if err != nil {
+			if xerrors.Is(err, types.ErrActorNotFound) {
+				rt.Abortf(exitcode.SysErrorIllegalActor, "failed to load actor in delete contract actor: %s", err)
+			}
+			panic(aerrors.Fatalf("failed to get actor: %s", err))
+		}
+		if act.Code != builtin.ContractActorCodeID {
+			rt.Abortf(exitcode.SysErrorIllegalActor, "failed to load actor in delete contract actor: address %x is not a contract actor", a)
+		}
+	}
+
+	// first check that it is a contract actor
+	isContractActor(rt, a)
+
+	// check that it reciever of Runtime is a contract actor
+	isContractActor(rt, rt.RecieverAddress())
+
+	// Delete the executing actor
+	if err := rt.state.DeleteActor(a); err != nil {
+		panic(aerrors.Fatalf("failed to delete actor: %s", err))
+	}
+	_ = rt.chargeGasSafe(gasOnActorExec)
+}
+
+// NewContractActorAddress implements runtime.NewContractActorAddress
+func (rt *Runtime) NewContractActorAddress(code []byte) (address.Address, []byte) {
+	act, err := rt.state.GetActor(rt.Origin())
+	if err != nil {
+		rt.Abortf(exitcode.SysErrorIllegalActor, "failed to get actor for NewContractActorAddress: %s", err)
+	}
+	fakeSalt := make([]byte, 32)
+	binary.LittleEndian.PutUint64(fakeSalt, act.Nonce)
+
+	newAddress, err := contract.PrecomputeContractAddress(rt.Origin(), code, fakeSalt)
+
+	if err != nil {
+		rt.Abortf(exitcode.SysErrorIllegalActor, "failed to compute address for NewContractActorAddress: %s", err)
+	}
+	return newAddress, fakeSalt
 }
 
 func (rt *Runtime) NetworkVersion() network.Version {
@@ -103,6 +403,83 @@ func (rt *Runtime) ResolveAddress(addr address.Address) (ret address.Address, ok
 		panic(aerrors.Fatalf("failed to resolve address %s: %s", addr, err))
 	}
 	return r, true
+}
+
+func (rt *Runtime) ImportLocalStorage(path string, car bool) (multistore.StoreID, cid.Cid, error) {
+	return rt.storageAPI.ImportLocalStorage(path, car)
+}
+
+func (rt *Runtime) DropLocalStorage(ids []multistore.StoreID) error {
+	return rt.storageAPI.DropLocalStorage(ids)
+}
+
+func (rt *Runtime) ListLocalImports() ([]rt2.Import, error) {
+	list, err := rt.storageAPI.ListLocalImports()
+	var result []rt2.Import
+	for _, elem := range list {
+		result = append(result, sapi.ConvertImport(elem))
+	}
+	return result, err
+}
+
+func (rt *Runtime) FindData(root cid.Cid, pieceCid *cid.Cid) ([]rt2.QueryOffer, bool, error) {
+	offers, local, err := rt.storageAPI.FindData(root, pieceCid)
+	var result []rt2.QueryOffer
+	for _, elem := range offers {
+		result = append(result, sapi.ConvertQueryOffer(elem))
+	}
+	return result, local, err
+}
+
+func (rt *Runtime) RetrieveData(params rt2.RetrieveParams) error {
+	events, err := rt.storageAPI.RetrieveData(params.DataCid, params.OutputPath, params.Payer,
+		params.MinerAddr, params.PieceCid, params.MaxPrice, params.Car)
+	if err != nil {
+		return err
+	}
+	rt.Log(rtt.INFO, "Retrieve start. Parameters = {dataCid: %v, outputPath: %v, miner: %v}", params.DataCid.String(), params.OutputPath, params.MinerAddr)
+	go func() {
+		for {
+			select {
+			case evt, ok := <-events:
+				if evt.Err != "" {
+					rt.Log(rtt.ERROR, "retrieval failed: %s", evt.Err)
+				}
+				if !ok {
+					return
+				}
+			case <-rt.ctx.Done():
+				rt.Log(rtt.ERROR, "retrieval timed out")
+			}
+		}
+	}()
+	return nil
+}
+
+func (rt *Runtime) InitDeal(params rt2.InitDealParams) (*cid.Cid, error) {
+	return rt.storageAPI.InitDeal(params.DataCid, params.Miner, types.FIL(params.Price), params.Duration,
+		params.StartEpoch, params.VerifiedDealParam, params.FastRetrieval, params.ProvCol, params.From, params.Ref)
+}
+
+func (rt *Runtime) QueryAsk(maddr address.Address, pid peer.ID) (*storagemarket.StorageAsk, error) {
+	return rt.storageAPI.QueryAsk(maddr, pid)
+}
+
+func (rt *Runtime) ListDeals() ([]rt2.DealInfo, error) {
+	list, err := rt.storageAPI.ListDeals()
+	var result []rt2.DealInfo
+	for _, elem := range list {
+		result = append(result, sapi.ConvertDealInfo(elem))
+	}
+	return result, err
+}
+
+func (rt *Runtime) GetDeal(propCid cid.Cid) (rt2.Deal, error) {
+	return rt.storageAPI.GetDeal(propCid)
+}
+
+func (rt *Runtime) ListAsks() ([]*storagemarket.StorageAsk, error) {
+	return rt.storageAPI.ListAsks()
 }
 
 type notFoundErr interface {
@@ -183,7 +560,6 @@ func (rt *Runtime) shimCall(f func() interface{}) (rval []byte, aerr aerrors.Act
 
 func (rt *Runtime) ValidateImmediateCallerAcceptAny() {
 	rt.abortIfAlreadyValidated()
-	return
 }
 
 func (rt *Runtime) CurrentBalance() abi.TokenAmount {
@@ -366,6 +742,24 @@ func (rt *Runtime) Send(to address.Address, method abi.MethodNum, m cbor.Marshal
 		rt.Abortf(exitcode.ErrSerialization, "failed to unmarshal return value: %s", err)
 	}
 	return 0
+}
+
+// SendMarshalled send marshalled message
+func (rt *Runtime) SendMarshalled(to address.Address, method abi.MethodNum, value abi.TokenAmount, params []byte) ([]byte, exitcode.ExitCode) {
+	if !rt.allowInternal {
+		rt.Abortf(exitcode.SysErrorIllegalActor, "runtime.Send() is currently disallowed")
+	}
+
+	ret, err := rt.internalSend(rt.Receiver(), to, method, value, params)
+	if err != nil {
+		if err.IsFatal() {
+			panic(err)
+		}
+		log.Warnf("vmctx send failed: to: %s, method: %d: ret: %d, err: %s", to, method, ret, err)
+		return []byte{}, err.RetCode()
+	}
+	_ = rt.chargeGasSafe(gasOnActorExec)
+	return ret, 0
 }
 
 func (rt *Runtime) internalSend(from, to address.Address, method abi.MethodNum, value types.BigInt, params []byte) ([]byte, aerrors.ActorError) {
@@ -558,6 +952,14 @@ func (rt *Runtime) chargeGasInternal(gas GasCharge, skip int) aerrors.ActorError
 
 func (rt *Runtime) chargeGasSafe(gas GasCharge) aerrors.ActorError {
 	return rt.chargeGasInternal(gas, 1)
+}
+
+func (rt *Runtime) GasLimit() uint64 {
+	if rt.gasAvailable > rt.gasUsed {
+		return uint64(rt.gasAvailable - rt.gasUsed)
+	}
+	rt.Abortf(exitcode.ErrIllegalState, "GasLimit - try to spend extraGas:\n Available - %v\nUsed - %v", rt.gasAvailable, rt.gasUsed)
+	return 0
 }
 
 func (rt *Runtime) Pricelist() Pricelist {

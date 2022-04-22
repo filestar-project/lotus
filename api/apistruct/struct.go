@@ -35,6 +35,7 @@ import (
 	"github.com/filecoin-project/specs-storage/storage"
 
 	"github.com/filecoin-project/lotus/api"
+	web3 "github.com/filecoin-project/lotus/api/web3_api"
 	"github.com/filecoin-project/lotus/build"
 	"github.com/filecoin-project/lotus/chain/actors/builtin/miner"
 	"github.com/filecoin-project/lotus/chain/actors/builtin/paych"
@@ -44,6 +45,83 @@ import (
 
 // All permissions are listed in permissioned.go
 var _ = AllPermissions
+
+type EthInfoStruct struct {
+	Internal struct {
+		ProtocolVersion                     func(ctx context.Context) (web3.HexString, error)                                                                          `perm:"read"`
+		Syncing                             func(ctx context.Context) (interface{}, error)                                                                             `perm:"read"`
+		Coinbase                            func(ctx context.Context) (string, error)                                                                                  `perm:"read"`
+		Mining                              func(ctx context.Context) (bool, error)                                                                                    `perm:"read"`
+		Hashrate                            func(ctx context.Context) (web3.HexString, error)                                                                          `perm:"read"`
+		GasPrice                            func(ctx context.Context) (web3.HexString, error)                                                                          `perm:"read"`
+		Accounts                            func(ctx context.Context) ([]string, error)                                                                                `perm:"read"`
+		BlockNumber                         func(ctx context.Context) (web3.HexString, error)                                                                          `perm:"read"`
+		GetBalance                          func(ctx context.Context, address string, blocknumOrTag web3.Quantity) (web3.HexString, error)                             `perm:"read"`
+		GetStorageAt                        func(ctx context.Context, address string, position web3.HexString, blocknumOrTag web3.Quantity) (web3.HexString, error)    `perm:"read"`
+		GetTransactionCount                 func(ctx context.Context, address string, blocknumOrTag web3.Quantity) (web3.HexString, error)                             `perm:"read"`
+		GetBlockByNumber                    func(ctx context.Context, blocknumOrTag web3.Quantity, fullTransactions bool, index web3.Quantity) (web3.BlockInfo, error) `perm:"read"`
+		GetBlockByHash                      func(ctx context.Context, blockhash string, fullTransactions bool) (web3.BlockInfo, error)                                 `perm:"read"`
+		GetUncleByBlockHashAndIndex         func(ctx context.Context, data string, index web3.Quantity) (web3.BlockInfo, error)                                        `perm:"read"`
+		EstimateGas                         func(ctx context.Context, info web3.MessageInfo, blocknumOrTag web3.Quantity) (web3.HexString, error)                      `perm:"read"`
+		GetTransactionByHash                func(ctx context.Context, txhash string) (web3.TransactionInfo, error)                                                     `perm:"read"`
+		GetCode                             func(ctx context.Context, address string, blocknumOrTag web3.Quantity) (web3.HexString, error)                             `perm:"read"`
+		GetBlockTransactionCountByHash      func(ctx context.Context, blockhash string) (web3.HexString, error)                                                        `perm:"read"`
+		GetBlockTransactionCountByNumber    func(ctx context.Context, blocknumOrTag web3.Quantity, index web3.Quantity) (web3.HexString, error)                        `perm:"read"`
+		GetUncleCountByBlockHash            func(ctx context.Context, blockhash string) (web3.HexString, error)                                                        `perm:"read"`
+		GetUncleCountByBlockNumber          func(ctx context.Context, blocknumOrTag web3.Quantity) (web3.HexString, error)                                             `perm:"read"`
+		GetTransactionByBlockHashAndIndex   func(ctx context.Context, blockhash string, index web3.Quantity) (web3.TransactionInfo, error)                             `perm:"read"`
+		GetTransactionByBlockNumberAndIndex func(ctx context.Context, blocknumOrTag web3.Quantity, index, blockIndex web3.Quantity) (web3.TransactionInfo, error)      `perm:"read"`
+		GetTransactionReceipt               func(ctx context.Context, txhash string) (web3.TransactionReceipt, error)                                                  `perm:"read"`
+		GetTipsetByHeight                   func(ctx context.Context, blocknumOrTag web3.Quantity) ([]web3.BlockInfo, error)                                           `perm:"read"`
+		GetUncleByBlockNumberAndIndex       func(ctx context.Context, blockhash string, index web3.Quantity) (web3.TransactionInfo, error)                             `perm:"read"`
+		GetCompilers                        func(ctx context.Context) ([]string, error)                                                                                `perm:"read"`
+		CompileSerpent                      func(ctx context.Context, data string) (string, error)                                                                     `perm:"read"`
+		CompileLLL                          func(ctx context.Context, data string) (string, error)                                                                     `perm:"read"`
+		CompileSolidity                     func(ctx context.Context, data string) (string, error)                                                                     `perm:"read"`
+		NewFilter                           func(ctx context.Context, filter web3.NewFilterInfo) (web3.HexString, error)                                               `perm:"read"`
+		NewBlockFilter                      func(ctx context.Context) (web3.HexString, error)                                                                          `perm:"read"`
+		NewPendingTransactionFilter         func(ctx context.Context) (web3.HexString, error)                                                                          `perm:"read"`
+		UninstallFilter                     func(ctx context.Context, id web3.Quantity) (bool, error)                                                                  `perm:"read"`
+		GetLogs                             func(ctx context.Context, filter web3.FilterQuery) (web3.GetLogsResult, error)                                             `perm:"read"`
+		GetFilterChanges                    func(ctx context.Context, id web3.Quantity) (web3.GetLogsResult, error)                                                    `perm:"read"`
+		GetFilterLogs                       func(ctx context.Context, id web3.Quantity) (web3.GetLogsResult, error)                                                    `perm:"read"`
+		GetWork                             func(ctx context.Context) (web3.WorkInfo, error)                                                                           `perm:"read"`
+	}
+}
+
+type EthFunctionalityStruct struct {
+	EthInfoStruct
+
+	Internal struct {
+		Call               func(ctx context.Context, info web3.MessageInfo, blocknumOrTag web3.Quantity) (web3.HexString, error) `perm:"read"`
+		SendRawTransaction func(ctx context.Context, signedTx web3.HexString) (string, error)                                    `perm:"read"`
+		Sign               func(ctx context.Context, address string, message web3.HexString) (web3.HexString, error)             `perm:"read"`
+		SignTransaction    func(ctx context.Context, message web3.MessageInfo) (web3.HexString, error)                           `perm:"read"`
+		SendTransaction    func(ctx context.Context, message web3.MessageInfo) (string, error)                                   `perm:"read"`
+		SubmitHashrate     func(ctx context.Context, hashrate, id string) (bool, error)                                          `perm:"read"`
+	}
+}
+
+type TraceFunctionalityStruct struct {
+	Internal struct {
+		Filter func(ctx context.Context, filter web3.TraceFilter) ([]web3.TraceBlock, error) `perm:"read"`
+	}
+}
+
+type NetInfoStruct struct {
+	Internal struct {
+		PeerCount func(ctx context.Context) (web3.HexString, error) `perm:"read"`
+		Listening func(ctx context.Context) (bool, error)           `perm:"read"`
+		Version   func(ctx context.Context) (string, error)         `perm:"read"`
+	}
+}
+
+type Web3InfoStruct struct {
+	Internal struct {
+		ClientVersion func(ctx context.Context) (string, error)                      `perm:"read"`
+		Sha3          func(ctx context.Context, data web3.HexString) (string, error) `perm:"read"`
+	}
+}
 
 type CommonStruct struct {
 	Internal struct {
@@ -1892,9 +1970,176 @@ func (c *WalletStruct) WalletDelete(ctx context.Context, addr address.Address) e
 	return c.Internal.WalletDelete(ctx, addr)
 }
 
+// Web3 API
+// eth_info
+func (ethInfo *EthInfoStruct) ProtocolVersion(ctx context.Context) (web3.HexString, error) {
+	return ethInfo.Internal.ProtocolVersion(ctx)
+}
+func (ethInfo *EthInfoStruct) Syncing(ctx context.Context) (interface{}, error) {
+	return ethInfo.Internal.Syncing(ctx)
+}
+func (ethInfo *EthInfoStruct) Coinbase(ctx context.Context) (string, error) {
+	return ethInfo.Internal.Coinbase(ctx)
+}
+func (ethInfo *EthInfoStruct) Mining(ctx context.Context) (bool, error) {
+	return ethInfo.Internal.Mining(ctx)
+}
+func (ethInfo *EthInfoStruct) Hashrate(ctx context.Context) (web3.HexString, error) {
+	return ethInfo.Internal.Hashrate(ctx)
+}
+func (ethInfo *EthInfoStruct) GasPrice(ctx context.Context) (web3.HexString, error) {
+	return ethInfo.Internal.GasPrice(ctx)
+}
+func (ethInfo *EthInfoStruct) Accounts(ctx context.Context) ([]string, error) {
+	return ethInfo.Internal.Accounts(ctx)
+}
+func (ethInfo *EthInfoStruct) BlockNumber(ctx context.Context) (web3.HexString, error) {
+	return ethInfo.Internal.BlockNumber(ctx)
+}
+func (ethInfo *EthInfoStruct) GetBalance(ctx context.Context, address string, blocknumOrTag web3.Quantity) (web3.HexString, error) {
+	return ethInfo.Internal.GetBalance(ctx, address, blocknumOrTag)
+}
+func (ethInfo *EthInfoStruct) GetStorageAt(ctx context.Context, address string, position web3.HexString, blocknumOrTag web3.Quantity) (web3.HexString, error) {
+	return ethInfo.Internal.GetStorageAt(ctx, address, position, blocknumOrTag)
+}
+func (ethInfo *EthInfoStruct) GetTipsetByHeight(ctx context.Context, blocknumOrTag web3.Quantity) ([]web3.BlockInfo, error) {
+	return ethInfo.Internal.GetTipsetByHeight(ctx, blocknumOrTag)
+}
+func (ethInfo *EthInfoStruct) GetTransactionCount(ctx context.Context, address string, blocknumOrTag web3.Quantity) (web3.HexString, error) {
+	return ethInfo.Internal.GetTransactionCount(ctx, address, blocknumOrTag)
+}
+func (ethInfo *EthInfoStruct) GetBlockByNumber(ctx context.Context, blocknumOrTag web3.Quantity, fullTransactions bool, index web3.Quantity) (web3.BlockInfo, error) {
+	return ethInfo.Internal.GetBlockByNumber(ctx, blocknumOrTag, fullTransactions, index)
+}
+func (ethInfo *EthInfoStruct) GetBlockByHash(ctx context.Context, blockhash string, fullTransactions bool) (web3.BlockInfo, error) {
+	return ethInfo.Internal.GetBlockByHash(ctx, blockhash, fullTransactions)
+}
+func (ethInfo *EthInfoStruct) GetUncleByBlockHashAndIndex(ctx context.Context, data string, index web3.Quantity) (web3.BlockInfo, error) {
+	return ethInfo.Internal.GetUncleByBlockHashAndIndex(ctx, data, index)
+}
+func (ethInfo *EthInfoStruct) EstimateGas(ctx context.Context, info web3.MessageInfo, blocknumOrTag web3.Quantity) (web3.HexString, error) {
+	return ethInfo.Internal.EstimateGas(ctx, info, blocknumOrTag)
+}
+func (ethInfo *EthInfoStruct) GetTransactionByHash(ctx context.Context, txhash string) (web3.TransactionInfo, error) {
+	return ethInfo.Internal.GetTransactionByHash(ctx, txhash)
+}
+func (ethInfo *EthInfoStruct) GetCode(ctx context.Context, address string, blocknumOrTag web3.Quantity) (web3.HexString, error) {
+	return ethInfo.Internal.GetCode(ctx, address, blocknumOrTag)
+}
+func (ethInfo *EthInfoStruct) GetBlockTransactionCountByHash(ctx context.Context, blockhash string) (web3.HexString, error) {
+	return ethInfo.Internal.GetBlockTransactionCountByHash(ctx, blockhash)
+}
+func (ethInfo *EthInfoStruct) GetBlockTransactionCountByNumber(ctx context.Context, blocknumOrTag web3.Quantity, index web3.Quantity) (web3.HexString, error) {
+	return ethInfo.Internal.GetBlockTransactionCountByNumber(ctx, blocknumOrTag, index)
+}
+func (ethInfo *EthInfoStruct) GetUncleCountByBlockHash(ctx context.Context, blockhash string) (web3.HexString, error) {
+	return ethInfo.Internal.GetUncleCountByBlockHash(ctx, blockhash)
+}
+func (ethInfo *EthInfoStruct) GetUncleCountByBlockNumber(ctx context.Context, blocknumOrTag web3.Quantity) (web3.HexString, error) {
+	return ethInfo.Internal.GetUncleCountByBlockNumber(ctx, blocknumOrTag)
+}
+func (ethInfo *EthInfoStruct) GetTransactionByBlockHashAndIndex(ctx context.Context, blockhash string, index web3.Quantity) (web3.TransactionInfo, error) {
+	return ethInfo.Internal.GetTransactionByBlockHashAndIndex(ctx, blockhash, index)
+}
+func (ethInfo *EthInfoStruct) GetTransactionByBlockNumberAndIndex(ctx context.Context, blocknumOrTag, index, blockIndex web3.Quantity) (web3.TransactionInfo, error) {
+	return ethInfo.Internal.GetTransactionByBlockNumberAndIndex(ctx, blocknumOrTag, index, blockIndex)
+}
+func (ethInfo *EthInfoStruct) GetTransactionReceipt(ctx context.Context, txhash string) (web3.TransactionReceipt, error) {
+	return ethInfo.Internal.GetTransactionReceipt(ctx, txhash)
+}
+func (ethInfo *EthInfoStruct) GetUncleByBlockNumberAndIndex(ctx context.Context, blockhash string, index web3.Quantity) (web3.TransactionInfo, error) {
+	return ethInfo.Internal.GetUncleByBlockNumberAndIndex(ctx, blockhash, index)
+}
+func (ethInfo *EthInfoStruct) GetCompilers(ctx context.Context) ([]string, error) {
+	return ethInfo.Internal.GetCompilers(ctx)
+}
+func (ethInfo *EthInfoStruct) CompileSerpent(ctx context.Context, data string) (string, error) {
+	return ethInfo.Internal.CompileSerpent(ctx, data)
+}
+func (ethInfo *EthInfoStruct) CompileLLL(ctx context.Context, data string) (string, error) {
+	return ethInfo.Internal.CompileLLL(ctx, data)
+}
+func (ethInfo *EthInfoStruct) CompileSolidity(ctx context.Context, data string) (string, error) {
+	return ethInfo.Internal.CompileSolidity(ctx, data)
+}
+func (ethInfo *EthInfoStruct) NewFilter(ctx context.Context, filter web3.NewFilterInfo) (web3.HexString, error) {
+	return ethInfo.Internal.NewFilter(ctx, filter)
+}
+func (ethInfo *EthInfoStruct) NewBlockFilter(ctx context.Context) (web3.HexString, error) {
+	return ethInfo.Internal.NewBlockFilter(ctx)
+}
+func (ethInfo *EthInfoStruct) NewPendingTransactionFilter(ctx context.Context) (web3.HexString, error) {
+	return ethInfo.Internal.NewPendingTransactionFilter(ctx)
+}
+func (ethInfo *EthInfoStruct) UninstallFilter(ctx context.Context, id web3.Quantity) (bool, error) {
+	return ethInfo.Internal.UninstallFilter(ctx, id)
+}
+func (ethInfo *EthInfoStruct) GetFilterChanges(ctx context.Context, id web3.Quantity) (web3.GetLogsResult, error) {
+	return ethInfo.Internal.GetFilterChanges(ctx, id)
+}
+func (ethInfo *EthInfoStruct) GetFilterLogs(ctx context.Context, id web3.Quantity) (web3.GetLogsResult, error) {
+	return ethInfo.Internal.GetFilterLogs(ctx, id)
+}
+func (ethInfo *EthInfoStruct) GetLogs(ctx context.Context, filter web3.FilterQuery) (web3.GetLogsResult, error) {
+	return ethInfo.Internal.GetLogs(ctx, filter)
+}
+func (ethInfo *EthInfoStruct) GetWork(ctx context.Context) (web3.WorkInfo, error) {
+	return ethInfo.Internal.GetWork(ctx)
+}
+
+//eth_functionality
+
+func (ethFunc *EthFunctionalityStruct) Call(ctx context.Context, info web3.MessageInfo, blocknumOrTag web3.Quantity) (web3.HexString, error) {
+	return ethFunc.Internal.Call(ctx, info, blocknumOrTag)
+}
+func (ethFunc *EthFunctionalityStruct) SendRawTransaction(ctx context.Context, signedTx web3.HexString) (string, error) {
+	return ethFunc.Internal.SendRawTransaction(ctx, signedTx)
+}
+func (ethFunc *EthFunctionalityStruct) Sign(ctx context.Context, address string, message web3.HexString) (web3.HexString, error) {
+	return ethFunc.Internal.Sign(ctx, address, message)
+}
+func (ethFunc *EthFunctionalityStruct) SignTransaction(ctx context.Context, message web3.MessageInfo) (web3.HexString, error) {
+	return ethFunc.Internal.SignTransaction(ctx, message)
+}
+func (ethFunc *EthFunctionalityStruct) SendTransaction(ctx context.Context, message web3.MessageInfo) (string, error) {
+	return ethFunc.Internal.SendTransaction(ctx, message)
+}
+func (ethFunc *EthFunctionalityStruct) SubmitHashrate(ctx context.Context, hashrate, id string) (bool, error) {
+	return ethFunc.Internal.SubmitHashrate(ctx, hashrate, id)
+}
+
+// net_info
+func (netInfo *NetInfoStruct) PeerCount(ctx context.Context) (web3.HexString, error) {
+	return netInfo.Internal.PeerCount(ctx)
+}
+func (netInfo *NetInfoStruct) Listening(ctx context.Context) (bool, error) {
+	return netInfo.Internal.Listening(ctx)
+}
+func (netInfo *NetInfoStruct) Version(ctx context.Context) (string, error) {
+	return netInfo.Internal.Version(ctx)
+}
+
+//web3_info
+func (web3Info *Web3InfoStruct) ClientVersion(ctx context.Context) (string, error) {
+	return web3Info.Internal.ClientVersion(ctx)
+}
+func (web3Info *Web3InfoStruct) Sha3(ctx context.Context, data web3.HexString) (string, error) {
+	return web3Info.Internal.Sha3(ctx, data)
+}
+
+//trace_func
+func (traceFunc *TraceFunctionalityStruct) Filter(ctx context.Context, filter web3.TraceFilter) ([]web3.TraceBlock, error) {
+	return traceFunc.Internal.Filter(ctx, filter)
+}
+
 var _ api.Common = &CommonStruct{}
 var _ api.FullNode = &FullNodeStruct{}
 var _ api.StorageMiner = &StorageMinerStruct{}
 var _ api.WorkerAPI = &WorkerStruct{}
 var _ api.GatewayAPI = &GatewayStruct{}
 var _ api.WalletAPI = &WalletStruct{}
+var _ web3.EthInfo = &EthInfoStruct{}
+var _ web3.EthFunctionality = &EthFunctionalityStruct{}
+var _ web3.Web3Info = &Web3InfoStruct{}
+var _ web3.NetInfo = &NetInfoStruct{}
+var _ web3.TraceFunctionality = &TraceFunctionalityStruct{}

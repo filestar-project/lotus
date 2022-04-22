@@ -11,6 +11,7 @@ import (
 
 	"github.com/filecoin-project/lotus/api"
 	"github.com/filecoin-project/lotus/api/apistruct"
+	web3 "github.com/filecoin-project/lotus/api/web3_api"
 	"github.com/filecoin-project/lotus/lib/rpcenc"
 )
 
@@ -100,6 +101,59 @@ func NewGatewayRPC(ctx context.Context, addr string, requestHeader http.Header, 
 func NewWalletRPC(ctx context.Context, addr string, requestHeader http.Header) (api.WalletAPI, jsonrpc.ClientCloser, error) {
 	var res apistruct.WalletStruct
 	closer, err := jsonrpc.NewMergeClient(ctx, addr, "Filecoin",
+		[]interface{}{
+			&res.Internal,
+		},
+		requestHeader,
+	)
+
+	return &res, closer, err
+}
+
+// NewWeb3RPC creates a new http jsonrpc client.
+func NewWeb3RPC(ctx context.Context, addr string, requestHeader http.Header) (web3.Web3Info, jsonrpc.ClientCloser, error) {
+	var res apistruct.Web3InfoStruct
+	closer, err := jsonrpc.NewMergeClient(ctx, addr, "web3",
+		[]interface{}{
+			&res.Internal,
+		},
+		requestHeader,
+	)
+
+	return &res, closer, err
+}
+
+// NewNetRPC creates a new http jsonrpc client.
+func NewNetRPC(ctx context.Context, addr string, requestHeader http.Header) (web3.NetInfo, jsonrpc.ClientCloser, error) {
+	var res apistruct.NetInfoStruct
+	closer, err := jsonrpc.NewMergeClient(ctx, addr, "net",
+		[]interface{}{
+			&res.Internal,
+		},
+		requestHeader,
+	)
+
+	return &res, closer, err
+}
+
+// NewEthFuncRPC creates a new http jsonrpc client.
+func NewEthRPC(ctx context.Context, addr string, requestHeader http.Header) (web3.EthFunctionality, jsonrpc.ClientCloser, error) {
+	var res apistruct.EthFunctionalityStruct
+	closer, err := jsonrpc.NewMergeClient(ctx, addr, "eth",
+		[]interface{}{
+			&res.EthInfoStruct.Internal,
+			&res.Internal,
+		},
+		requestHeader,
+	)
+
+	return &res, closer, err
+}
+
+// NewEthFuncRPC creates a new http jsonrpc client.
+func NewTraceRPC(ctx context.Context, addr string, requestHeader http.Header) (web3.TraceFunctionality, jsonrpc.ClientCloser, error) {
+	var res apistruct.TraceFunctionalityStruct
+	closer, err := jsonrpc.NewMergeClient(ctx, addr, "trace",
 		[]interface{}{
 			&res.Internal,
 		},

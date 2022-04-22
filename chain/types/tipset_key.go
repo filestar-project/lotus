@@ -64,7 +64,7 @@ func (k TipSetKey) Cids() []cid.Cid {
 // String() returns a human-readable representation of the key.
 func (k TipSetKey) String() string {
 	b := strings.Builder{}
-	b.WriteString("{")
+	b.WriteString("[")
 	cids := k.Cids()
 	for i, c := range cids {
 		b.WriteString(c.String())
@@ -72,7 +72,7 @@ func (k TipSetKey) String() string {
 			b.WriteString(",")
 		}
 	}
-	b.WriteString("}")
+	b.WriteString("]")
 	return b.String()
 }
 

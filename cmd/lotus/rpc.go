@@ -22,20 +22,28 @@ import (
 
 	"github.com/filecoin-project/go-jsonrpc"
 	"github.com/filecoin-project/go-jsonrpc/auth"
+	"github.com/filecoin-project/specs-actors/v2/actors/builtin/contract"
 
 	"github.com/filecoin-project/lotus/api"
 	"github.com/filecoin-project/lotus/api/apistruct"
+	web3 "github.com/filecoin-project/lotus/api/web3_api"
 	"github.com/filecoin-project/lotus/metrics"
 	"github.com/filecoin-project/lotus/node"
 	"github.com/filecoin-project/lotus/node/impl"
+	filters "github.com/filecoin-project/lotus/node/impl/web3/eth_filters"
 )
 
 var log = logging.Logger("main")
 
-func serveRPC(a api.FullNode, stop node.StopFunc, addr multiaddr.Multiaddr, shutdownCh <-chan struct{}) error {
+func serveRPCWithWeb3(a api.FullNode, web3RPC web3.FullWeb3Interface, stop node.StopFunc, addr multiaddr.Multiaddr, shutdownCh <-chan struct{}) error {
 	rpcServer := jsonrpc.NewServer()
 	rpcServer.Register("Filecoin", apistruct.PermissionedFullAPI(metrics.MetricedFullAPI(a)))
-
+	rpcServer.Register("web3", apistruct.PermissionedWeb3Info(metrics.MetricedWeb3API(web3RPC.Web3)))
+	rpcServer.Register("net", apistruct.PermissionedNetInfo(metrics.MetricedNetAPI(web3RPC.Net)))
+	rpcServer.Register("eth", apistruct.PermissionedEthFunc(metrics.MetricedEthAPI(web3RPC.Eth)))
+	rpcServer.Register("trace", apistruct.PermissionedTraceFunc(metrics.MetricedTraceAPI(web3RPC.Trace)))
+	// Start filters observer for filterManager
+	filters.StartFiltersObserver()
 	ah := &auth.Handler{
 		Verify: a.AuthVerify,
 		Next:   rpcServer.ServeHTTP,
@@ -97,6 +105,13 @@ func serveRPC(a api.FullNode, stop node.StopFunc, addr multiaddr.Multiaddr, shut
 		}
 		if err := stop(context.TODO()); err != nil {
 			log.Errorf("graceful shutting down failed: %s", err)
+		}
+		//close stateRoot database
+		if err := contract.CloseManager(); err != nil {
+			log.Errorf("graceful shutting down state manager failed: %s", err)
+		}
+		if err := contract.CloseLogsManager(); err != nil {
+			log.Errorf("graceful shutting down logs manager failed: %s", err)
 		}
 		log.Warn("Graceful shutdown successful")
 		_ = log.Sync() //nolint:errcheck

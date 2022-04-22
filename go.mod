@@ -8,7 +8,6 @@ require (
 	github.com/BurntSushi/toml v0.3.1
 	github.com/GeertJohan/go.rice v1.0.0
 	github.com/Gurpartap/async v0.0.0-20180927173644-4f7f499dd9ee
-	github.com/StackExchange/wmi v0.0.0-20190523213315-cbe66965904d // indirect
 	github.com/acarl005/stripansi v0.0.0-20180116102854-5a71ef0e047d
 	github.com/buger/goterm v0.0.0-20200322175922-2f3e71b85129
 	github.com/chzyer/readline v0.0.0-20180603132655-2972be24d48e
@@ -21,6 +20,7 @@ require (
 	github.com/drand/kyber v1.1.4
 	github.com/dustin/go-humanize v1.0.0
 	github.com/elastic/go-sysinfo v1.3.0
+	github.com/ethereum/go-ethereum v1.9.25
 	github.com/fatih/color v1.9.0
 	github.com/filecoin-project/filecoin-ffi v0.30.4-0.20200910194244-f640612a1a1f
 	github.com/filecoin-project/go-address v0.0.5
@@ -45,16 +45,16 @@ require (
 	github.com/filecoin-project/specs-actors/v3 v3.1.0
 	github.com/filecoin-project/specs-storage v0.1.1-0.20201105051918-5188d9774506
 	github.com/filecoin-project/test-vectors/schema v0.0.5
+	github.com/filestar-project/evm-adapter v0.0.1
 	github.com/gbrlsnchs/jwt/v3 v3.0.0-beta.1
 	github.com/go-kit/kit v0.10.0
-	github.com/go-ole/go-ole v1.2.4 // indirect
 	github.com/google/uuid v1.1.2
 	github.com/gorilla/mux v1.7.4
 	github.com/gorilla/websocket v1.4.2
 	github.com/hako/durafmt v0.0.0-20200710122514-c0fb7b4da026
 	github.com/hannahhoward/go-pubsub v0.0.0-20200423002714-8d62886cc36e
 	github.com/hashicorp/go-multierror v1.1.0
-	github.com/hashicorp/golang-lru v0.5.4
+	github.com/hashicorp/golang-lru v0.5.5-0.20210104140557-80c98217689d
 	github.com/influxdata/influxdb1-client v0.0.0-20191209144304-8bf82d3c094d
 	github.com/ipfs/bbloom v0.0.4
 	github.com/ipfs/go-bitswap v0.3.2
@@ -102,6 +102,7 @@ require (
 	github.com/libp2p/go-libp2p-kad-dht v0.11.0
 	github.com/libp2p/go-libp2p-mplex v0.3.0
 	github.com/libp2p/go-libp2p-noise v0.1.2
+	github.com/libp2p/go-libp2p-peer v0.2.0 // indirect
 	github.com/libp2p/go-libp2p-peerstore v0.2.6
 	github.com/libp2p/go-libp2p-pubsub v0.4.0
 	github.com/libp2p/go-libp2p-quic-transport v0.9.0
@@ -111,7 +112,8 @@ require (
 	github.com/libp2p/go-libp2p-tls v0.1.3
 	github.com/libp2p/go-libp2p-yamux v0.4.1
 	github.com/libp2p/go-maddr-filter v0.1.0
-	github.com/mattn/go-colorable v0.1.6 // indirect
+	github.com/libp2p/go-nat v0.0.5 // indirect
+	github.com/marten-seemann/qtls-go1-15 v0.1.0 // indirect
 	github.com/minio/blake2b-simd v0.0.0-20160723061019-3f5f724cb5b1
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/multiformats/go-base32 v0.0.3
@@ -132,19 +134,18 @@ require (
 	github.com/whyrusleeping/multiaddr-filter v0.0.0-20160516205228-e903e4adabd7
 	github.com/whyrusleeping/pubsub v0.0.0-20131020042734-02de8aa2db3d
 	github.com/xorcare/golden v0.6.1-0.20191112154924-b87f686d7542
+	github.com/zondax/ledger-go v0.12.1 // indirect
 	go.opencensus.io v0.22.4
-	go.uber.org/dig v1.10.0 // indirect
-	go.uber.org/fx v1.9.0
-	go.uber.org/multierr v1.5.0
+	go.uber.org/fx v1.13.1
+	go.uber.org/multierr v1.6.0
 	go.uber.org/zap v1.16.0
-	golang.org/x/net v0.0.0-20210405180319-a5a99cb37ef4
-	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
-	golang.org/x/sys v0.0.0-20210616094352-59db8d763f22
+	golang.org/x/crypto v0.0.0-20210513164829-c07d793c2f9a
+	golang.org/x/sync v0.0.0-20201207232520-09787c993a3a
+	golang.org/x/sys v0.0.0-20201119102817-f84b799fce68
 	golang.org/x/time v0.0.0-20191024005414-555d28b269f0
 	golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1
 	gopkg.in/cheggaaa/pb.v1 v1.0.28
 	gotest.tools v2.2.0+incompatible
-	launchpad.net/gocheck v0.0.0-20140225173054-000000000087 // indirect
 )
 
 replace github.com/filecoin-project/lotus => ./
@@ -162,3 +163,15 @@ replace github.com/filecoin-project/specs-actors/v3 => github.com/filestar-proje
 replace github.com/filecoin-project/go-state-types => github.com/filestar-project/go-state-types v0.1.4
 
 replace github.com/filecoin-project/go-paramfetch => github.com/filestar-project/go-paramfetch v0.0.2
+
+replace github.com/filecoin-project/go-state-types => ./extern/go-state-types
+
+replace github.com/filecoin-project/go-state-types => ./extern/go-state-types
+
+replace github.com/filecoin-project/specs-actors/v2 => ./extern/specs-actors
+
+replace github.com/filestar-project/evm-adapter => ./extern/evm-adapter
+
+replace github.com/filecoin-project/go-jsonrpc => ./extern/go-jsonrpc
+
+replace github.com/ethereum/go-ethereum => ./extern/go-ethereum

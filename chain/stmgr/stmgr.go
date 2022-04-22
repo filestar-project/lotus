@@ -5,8 +5,10 @@ import (
 	"errors"
 	"fmt"
 	"github.com/filecoin-project/specs-actors/v3/actors/migration/nv9"
+	"strconv"
 	"sync"
 
+	sapi "github.com/filecoin-project/lotus/api/storage_api"
 	"github.com/ipfs/go-cid"
 	cbor "github.com/ipfs/go-ipld-cbor"
 	logging "github.com/ipfs/go-log/v2"
@@ -21,6 +23,7 @@ import (
 
 	// Used for genesis.
 	msig0 "github.com/filecoin-project/specs-actors/actors/builtin/multisig"
+	"github.com/filecoin-project/specs-actors/v2/actors/builtin/contract"
 
 	// we use the same adt for all receipts
 	blockadt "github.com/filecoin-project/specs-actors/actors/util/adt"
@@ -70,6 +73,28 @@ type migration struct {
 	cache         *nv9.MemMigrationCache
 }
 
+type ExecutionFilter struct {
+	From map[address.Address]struct{}
+	To   map[address.Address]struct{}
+}
+
+func containsAddress(set map[address.Address]struct{}, addr address.Address) bool {
+	if len(set) != 0 {
+		_, exist := set[addr]
+		return exist
+	}
+	return true
+}
+
+func (filter *ExecutionFilter) check(msg *types.Message) bool {
+	if msg == nil {
+		return false
+	}
+	return containsAddress(filter.From, msg.From) && containsAddress(filter.To, msg.To)
+}
+
+var stateCheck sync.Mutex
+
 type StateManager struct {
 	cs *store.ChainStore
 
@@ -87,9 +112,6 @@ type StateManager struct {
 	// ErrExpensiveFork.
 	expensiveUpgrades map[abi.ChainEpoch]struct{}
 
-	stCache              map[string][]cid.Cid
-	compWait             map[string]chan struct{}
-	stlk                 sync.Mutex
 	genesisMsigLk        sync.Mutex
 	newVM                func(context.Context, *vm.VMOpts) (*vm.VM, error)
 	preIgnitionGenInfos  *genesisInfo
@@ -147,8 +169,6 @@ func NewStateManagerWithUpgradeSchedule(cs *store.ChainStore, us UpgradeSchedule
 		expensiveUpgrades: expensiveUpgrades,
 		newVM:             vm.NewVM,
 		cs:                cs,
-		stCache:           make(map[string][]cid.Cid),
-		compWait:          make(map[string]chan struct{}),
 	}, nil
 }
 
@@ -194,40 +214,6 @@ func (sm *StateManager) TipSetState(ctx context.Context, ts *types.TipSet) (st c
 		span.AddAttributes(trace.StringAttribute("tipset", fmt.Sprint(ts.Cids())))
 	}
 
-	ck := cidsToKey(ts.Cids())
-	sm.stlk.Lock()
-	cw, cwok := sm.compWait[ck]
-	if cwok {
-		sm.stlk.Unlock()
-		span.AddAttributes(trace.BoolAttribute("waited", true))
-		select {
-		case <-cw:
-			sm.stlk.Lock()
-		case <-ctx.Done():
-			return cid.Undef, cid.Undef, ctx.Err()
-		}
-	}
-	cached, ok := sm.stCache[ck]
-	if ok {
-		sm.stlk.Unlock()
-		span.AddAttributes(trace.BoolAttribute("cache", true))
-		return cached[0], cached[1], nil
-	}
-	ch := make(chan struct{})
-	sm.compWait[ck] = ch
-
-	defer func() {
-		sm.stlk.Lock()
-		delete(sm.compWait, ck)
-		if st != cid.Undef {
-			sm.stCache[ck] = []cid.Cid{st, rec}
-		}
-		sm.stlk.Unlock()
-		close(ch)
-	}()
-
-	sm.stlk.Unlock()
-
 	if ts.Height() == 0 {
 		// NB: This is here because the process that executes blocks requires that the
 		// block miner reference a valid miner in the state tree. Unless we create some
@@ -236,37 +222,63 @@ func (sm *StateManager) TipSetState(ctx context.Context, ts *types.TipSet) (st c
 		return ts.Blocks()[0].ParentStateRoot, ts.Blocks()[0].ParentMessageReceipts, nil
 	}
 
+	// If tipset height isn't max, then take state from db
+	if !contract.IsMaxHeight(int(ts.Height())) {
+		stateManager, err := contract.GetTipSetStateManager()
+		if err != nil {
+			return cid.Undef, cid.Undef, err
+		}
+		state, err := stateManager.GetState(ts.Height().String())
+		return state.State, state.Rectroot, err
+	}
+
+	stateCheck.Lock()
+	defer stateCheck.Unlock()
+
 	st, rec, err = sm.computeTipSetState(ctx, ts, nil)
 	if err != nil {
 		return cid.Undef, cid.Undef, err
 	}
-
+	stateManager, err := contract.GetTipSetStateManager()
+	if err != nil {
+		return cid.Undef, cid.Undef, err
+	}
+	err = stateManager.UpdateState(ts.Height().String(), contract.TipsetState{State: st, Rectroot: rec})
+	if err != nil {
+		return cid.Undef, cid.Undef, err
+	}
 	return st, rec, nil
 }
 
-func traceFunc(trace *[]*api.InvocResult) func(mcid cid.Cid, msg *types.Message, ret *vm.ApplyRet) error {
+func traceFunc(trace *[]*api.InvocResult, filter *ExecutionFilter) func(mcid cid.Cid, msg *types.Message, ret *vm.ApplyRet) error {
 	return func(mcid cid.Cid, msg *types.Message, ret *vm.ApplyRet) error {
-		ir := &api.InvocResult{
-			MsgCid:         mcid,
-			Msg:            msg,
-			MsgRct:         &ret.MessageReceipt,
-			ExecutionTrace: ret.ExecutionTrace,
-			Duration:       ret.Duration,
+		if filter == nil || filter.check(msg) {
+			ir := &api.InvocResult{
+				MsgCid:         mcid,
+				Msg:            msg,
+				MsgRct:         &ret.MessageReceipt,
+				ExecutionTrace: ret.ExecutionTrace,
+				Duration:       ret.Duration,
+			}
+			if ret.ActorErr != nil {
+				ir.Error = ret.ActorErr.Error()
+			}
+			if ret.GasCosts != nil {
+				ir.GasCost = MakeMsgGasCost(msg, ret)
+			}
+			*trace = append(*trace, ir)
 		}
-		if ret.ActorErr != nil {
-			ir.Error = ret.ActorErr.Error()
-		}
-		if ret.GasCosts != nil {
-			ir.GasCost = MakeMsgGasCost(msg, ret)
-		}
-		*trace = append(*trace, ir)
 		return nil
 	}
 }
 
 func (sm *StateManager) ExecutionTrace(ctx context.Context, ts *types.TipSet) (cid.Cid, []*api.InvocResult, error) {
+	return sm.ExecutionTraceWithFilter(ctx, nil, ts)
+}
+
+func (sm *StateManager) ExecutionTraceWithFilter(ctx context.Context, filter *ExecutionFilter, ts *types.TipSet) (cid.Cid, []*api.InvocResult, error) {
 	var trace []*api.InvocResult
-	st, _, err := sm.computeTipSetState(ctx, ts, traceFunc(&trace))
+	st, _, err := sm.computeTipSetState(ctx, ts, traceFunc(&trace, filter))
 	if err != nil {
 		return cid.Undef, nil, err
 	}
@@ -279,6 +291,10 @@ type ExecCallback func(cid.Cid, *types.Message, *vm.ApplyRet) error
 func (sm *StateManager) ApplyBlocks(ctx context.Context, parentEpoch abi.ChainEpoch, pstate cid.Cid, bms []store.BlockMessages, epoch abi.ChainEpoch, r vm.Rand, cb ExecCallback, baseFee abi.TokenAmount, ts *types.TipSet) (cid.Cid, cid.Cid, error) {
 
 	makeVmWithBaseState := func(base cid.Cid) (*vm.VM, error) {
+		api := &sapi.StorageContractAPI{
+			Ctx:  ctx,
+			Full: api.GlobalManager.GetFullNode(),
+		}
 		vmopt := &vm.VMOpts{
 			StateBase:      base,
 			Epoch:          epoch,
@@ -289,6 +305,7 @@ func (sm *StateManager) ApplyBlocks(ctx context.Context, parentEpoch abi.ChainEp
 			NtwkVersion:    sm.GetNtwkVersion,
 			BaseFee:        baseFee,
 			LookbackState:  LookbackStateGetterForTipset(sm, ts),
+			Api:            api,
 		}
 
 		return sm.newVM(ctx, vmopt)
@@ -361,6 +378,12 @@ func (sm *StateManager) ApplyBlocks(ctx context.Context, parentEpoch abi.ChainEp
 
 	var receipts []cbg.CBORMarshaler
 	processedMsgs := make(map[cid.Cid]struct{})
+	// Make snapshot for StateDB
+	// It makes revert inside, if ApplyBlocks was called before
+	err = contract.ReInitStateDBForHeight(int64(parentEpoch))
+	if err != nil {
+		return cid.Undef, cid.Undef, xerrors.Errorf("failed to reinit StateDb for parent epoch: %w", err)
+	}
 	for _, b := range bms {
 		penalty := types.NewInt(0)
 		gasReward := big.Zero()
@@ -422,7 +445,6 @@ func (sm *StateManager) ApplyBlocks(ctx context.Context, parentEpoch abi.ChainEp
 			return cid.Undef, cid.Undef, xerrors.Errorf("reward application message failed (exit %d): %s", ret.ExitCode, ret.ActorErr)
 		}
 	}
-
 	if err := runCron(epoch); err != nil {
 		return cid.Cid{}, cid.Cid{}, err
 	}
@@ -441,6 +463,31 @@ func (sm *StateManager) ApplyBlocks(ctx context.Context, parentEpoch abi.ChainEp
 	st, err := vmi.Flush(ctx)
 	if err != nil {
 		return cid.Undef, cid.Undef, xerrors.Errorf("vm flush failed: %w", err)
+	}
+
+	// Finally update root for levelDB
+	err = contract.SaveContractInfo()
+	if err != nil {
+		return cid.Undef, cid.Undef, xerrors.Errorf("SaveContractInfo failed: %w", err)
+	}
+	// Update dbManager height
+	contract.UpdateCurrentHeight(int(ts.Height()))
+	// After all messages execute we should update StateRoot for current height
+	manager, err := contract.GetStateRootManager()
+	if err != nil {
+		return cid.Undef, cid.Undef, xerrors.Errorf("GetStateRootManager failed: %w", err)
+	}
+	err = manager.UpdateRoot(strconv.FormatInt(int64(ts.Height()), 16))
+	if err != nil {
+		return cid.Undef, cid.Undef, xerrors.Errorf("UpdateRoot failed: %w", err)
+	}
+	logManager, err := contract.GetLogsManager()
+	if err != nil {
+		return cid.Undef, cid.Undef, xerrors.Errorf("GetLogsManager failed: %w", err)
+	}
+	err = logManager.UpdateHeightLogs(int64(ts.Height()))
+	if err != nil {
+		return cid.Undef, cid.Undef, xerrors.Errorf("UpdateHeightLogs failed: %w", err)
 	}
 
 	return st, rectroot, nil

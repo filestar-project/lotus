@@ -24,7 +24,6 @@ endif
 
 GOFLAGS+=-ldflags="$(ldflags)"
 
-
 ## FFI
 
 FFI_PATH:=extern/filecoin-ffi/

@@ -43,11 +43,11 @@ func RunClientTest(t *testing.T, cmds []*lcli.Command, clientNode test.TestNode)
 	require.Regexp(t, regexp.MustCompile("Ask:"), out)
 
 	// Create a deal (non-interactive)
-	// client deal <cid> <miner addr> 1000000attofil <duration>
+	// client deal <cid> <miner addr> 1000000attostar <duration>
 	res, _, err := test.CreateClientFile(ctx, clientNode, 1)
 	require.NoError(t, err)
 	dataCid := res.Root
-	price := "1000000attofil"
+	price := "1000000attostar"
 	duration := fmt.Sprintf("%d", build.MinDealDuration)
 	out = clientCLI.RunCmd("client", "deal", dataCid.String(), minerAddr.String(), price, duration)
 	fmt.Println("client deal", out)

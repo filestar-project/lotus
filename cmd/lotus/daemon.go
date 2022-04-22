@@ -16,6 +16,7 @@ import (
 	"strings"
 
 	paramfetch "github.com/filecoin-project/go-paramfetch"
+	"github.com/filecoin-project/specs-actors/v2/actors/builtin/contract"
 	metricsprom "github.com/ipfs/go-metrics-prometheus"
 	"github.com/mitchellh/go-homedir"
 	"github.com/multiformats/go-multiaddr"
@@ -27,7 +28,8 @@ import (
 	"golang.org/x/xerrors"
 	"gopkg.in/cheggaaa/pb.v1"
 
-	"github.com/filecoin-project/lotus/api"
+	lapi "github.com/filecoin-project/lotus/api"
+	web3 "github.com/filecoin-project/lotus/api/web3_api"
 	"github.com/filecoin-project/lotus/build"
 	"github.com/filecoin-project/lotus/chain/stmgr"
 	"github.com/filecoin-project/lotus/chain/store"
@@ -190,7 +192,11 @@ var DaemonCmd = &cli.Command{
 		if err != nil {
 			return xerrors.Errorf("opening fs repo: %w", err)
 		}
-
+		contract.PathToRepo = cctx.String("repo")
+		err = contract.InitStateDBManager()
+		if err != nil {
+			return xerrors.Errorf("could not init stateDBManager: %w", err)
+		}
 		if cctx.String("config") != "" {
 			r.SetConfigPath(cctx.String("config"))
 		}
@@ -259,20 +265,17 @@ var DaemonCmd = &cli.Command{
 			}
 
 			defer closer()
-			liteModeDeps = node.Override(new(api.GatewayAPI), gapi)
+			liteModeDeps = node.Override(new(lapi.GatewayAPI), gapi)
 		}
 
-		// some libraries like ipfs/go-ds-measure and ipfs/go-ipfs-blockstore
-		// use ipfs/go-metrics-interface. This injects a Prometheus exporter
-		// for those. Metrics are exported to the default registry.
-		if err := metricsprom.Inject(); err != nil {
-			log.Warnf("unable to inject prometheus ipfs/go-metrics exporter; some metrics will be unavailable; err: %s", err)
-		}
+		var api lapi.FullNode
+		var web3RPC web3.FullWeb3Interface
 
 		var api api.FullNode
 		stop, err := node.New(ctx,
 			node.FullAPI(&api, node.Lite(isLite)),
-
+			node.Override(new(dtypes.Bootstrapper), isBootstrapper),
+			node.Override(new(dtypes.ShutdownChan), shutdownChan),
 			node.Online(),
 			node.Repo(r),
 
@@ -295,11 +298,19 @@ var DaemonCmd = &cli.Command{
 				node.Unset(node.RunPeerMgrKey),
 				node.Unset(new(*peermgr.PeerMgr)),
 			),
+			node.Web3FullAPI(&web3RPC),
 		)
 		if err != nil {
 			return xerrors.Errorf("initializing node: %w", err)
 		}
-
+		err = lapi.GlobalManager.InitFullNode(api)
+		if err != nil {
+			return xerrors.Errorf("could not init fullNode: %w", err)
+		}
+		err = lapi.GlobalManager.InitFullWeb3(web3RPC)
+		if err != nil {
+			return xerrors.Errorf("could not init web3 api: %w", err)
+		}
 		if cctx.String("import-key") != "" {
 			if err := importKey(ctx, api, cctx.String("import-key")); err != nil {
 				log.Errorf("importing key failed: %+v", err)
@@ -322,14 +333,14 @@ var DaemonCmd = &cli.Command{
 		}
 
 		// TODO: properly parse api endpoint (or make it a URL)
-		return serveRPC(api, stop, endpoint, shutdownChan)
+		return serveRPCWithWeb3(api, web3RPC, stop, endpoint, shutdownChan)
 	},
 	Subcommands: []*cli.Command{
 		daemonStopCmd,
 	},
 }
 
-func importKey(ctx context.Context, api api.FullNode, f string) error {
+func importKey(ctx context.Context, api lapi.FullNode, f string) error {
 	f, err := homedir.Expand(f)
 	if err != nil {
 		return err

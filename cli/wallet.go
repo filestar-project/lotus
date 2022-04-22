@@ -63,7 +63,6 @@ var walletNew = &cli.Command{
 		if err != nil {
 			return err
 		}
-
 		fmt.Println(nk.String())
 
 		return nil

@@ -120,12 +120,12 @@ func NewGeneratorWithSectors(numSectors int) (*ChainGen, error) {
 		return nil, xerrors.Errorf("taking mem-repo lock failed: %w", err)
 	}
 
-	ds, err := lr.Datastore(context.TODO(),"/metadata")
+	ds, err := lr.Datastore(context.TODO(), "/metadata")
 	if err != nil {
 		return nil, xerrors.Errorf("failed to get metadata datastore: %w", err)
 	}
 
-	bs, err := lr.Blockstore(context.TODO(),repo.BlockstoreChain)
+	bs, err := lr.Blockstore(context.TODO(), repo.BlockstoreChain)
 	if err != nil {
 		return nil, err
 	}
@@ -508,6 +508,12 @@ func (cg *ChainGen) ResyncBankerNonce(ts *types.TipSet) error {
 	return nil
 }
 
+// ResyncBankerNonce is used for dealing with messages made when
+// simulating forks
+func (cg *ChainGen) IncreaseBankerNonce() {
+	cg.bankerNonce++
+}
+
 func (cg *ChainGen) Banker() address.Address {
 	return cg.banker
 }
@@ -533,7 +539,6 @@ func getRandomMessages(cg *ChainGen) ([]*types.SignedMessage, error) {
 			GasFeeCap:  types.NewInt(0),
 			GasPremium: types.NewInt(0),
 		}
-
 		sig, err := cg.w.WalletSign(context.TODO(), cg.banker, msg.Cid().Bytes(), api.MsgMeta{
 			Type: api.MTUnknown, // testing
 		})

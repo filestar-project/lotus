@@ -3,6 +3,7 @@ package apistruct
 import (
 	"github.com/filecoin-project/go-jsonrpc/auth"
 	"github.com/filecoin-project/lotus/api"
+	web3 "github.com/filecoin-project/lotus/api/web3_api"
 )
 
 const (
@@ -39,6 +40,31 @@ func PermissionedWorkerAPI(a api.WorkerAPI) api.WorkerAPI {
 
 func PermissionedWalletAPI(a api.WalletAPI) api.WalletAPI {
 	var out WalletStruct
+	auth.PermissionedProxy(AllPermissions, DefaultPerms, a, &out.Internal)
+	return &out
+}
+
+func PermissionedWeb3Info(a web3.Web3Info) web3.Web3Info {
+	var out Web3InfoStruct
+	auth.PermissionedProxy(AllPermissions, DefaultPerms, a, &out.Internal)
+	return &out
+}
+
+func PermissionedNetInfo(a web3.NetInfo) web3.NetInfo {
+	var out NetInfoStruct
+	auth.PermissionedProxy(AllPermissions, DefaultPerms, a, &out.Internal)
+	return &out
+}
+
+func PermissionedEthFunc(a web3.EthFunctionality) web3.EthFunctionality {
+	var out EthFunctionalityStruct
+	auth.PermissionedProxy(AllPermissions, DefaultPerms, a, &out.EthInfoStruct.Internal)
+	auth.PermissionedProxy(AllPermissions, DefaultPerms, a, &out.Internal)
+	return &out
+}
+
+func PermissionedTraceFunc(a web3.TraceFunctionality) web3.TraceFunctionality {
+	var out TraceFunctionalityStruct
 	auth.PermissionedProxy(AllPermissions, DefaultPerms, a, &out.Internal)
 	return &out
 }
